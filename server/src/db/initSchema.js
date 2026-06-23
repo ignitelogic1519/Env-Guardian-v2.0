@@ -71,6 +71,17 @@ const STATEMENTS = [
      last_used   bigint NOT NULL DEFAULT 0,
      recorded_at bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
    )`,
+  // Per-user, per-app time budgets set by the admin.
+  // daily_limit_ms = how long this app may be used per day (in ms); 0 = unlimited.
+  // enabled = whether this app is allowed at all inside the zone.
+  `CREATE TABLE IF NOT EXISTS public.app_policies (
+     id             SERIAL PRIMARY KEY,
+     emp_id         varchar(50)  NOT NULL,
+     package        varchar(200) NOT NULL,
+     daily_limit_ms bigint  NOT NULL DEFAULT 0,
+     enabled        boolean NOT NULL DEFAULT true,
+     updated_at     bigint  NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
+   )`,
   `CREATE TABLE IF NOT EXISTS public.system_settings (
      id               SERIAL PRIMARY KEY,
      admin_password   varchar(100) NOT NULL,
@@ -94,6 +105,9 @@ const STATEMENTS = [
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS device_model varchar(100)`,
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS android_version varchar(20)`,
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS sdk_int integer`,
+  // Per-user "special key": a JSON object of feature toggles the admin controls,
+  // e.g. {"app_time_limits": true}. Lets an admin unlock special behaviour per user.
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS feature_flags jsonb DEFAULT '{}'::jsonb`,
   // users table backfills (in case an older/partial users table exists)
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS org_name varchar(100) DEFAULT 'Env Guardian'`,
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role varchar(20) DEFAULT 'admin'`,
@@ -115,6 +129,9 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_agents_user_id     ON public.agents (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_app_usage_date      ON public.app_usage (date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_app_usage_emp_date  ON public.app_usage (emp_id, date DESC)`,
+  // One policy row per (employee, app). Powers upserts from the dashboard.
+  `CREATE UNIQUE INDEX IF NOT EXISTS app_policies_emp_pkg_key ON public.app_policies (emp_id, package)`,
+  `CREATE INDEX IF NOT EXISTS idx_app_policies_emp ON public.app_policies (emp_id)`,
 ];
 
 // Default restricted zone (Zone 1 — Surat, Gujarat).

@@ -68,15 +68,44 @@ class CloudSync {
         }
         List<String> customWhitelist = cList.map((e) => e.toString()).toList();
 
+        // Per-app time-limit policy + per-user feature key (v2).
+        var rawPolicies = data['app_policies'];
+        List<dynamic> policies = (rawPolicies is List) ? rawPolicies : [];
+        var flags = data['feature_flags'];
+        Map<String, dynamic> featureFlags = (flags is Map) ? Map<String, dynamic>.from(flags) : {};
+
         return {
-          "success": true,  
+          "success": true,
           "admin_lock": data['admin_lock'] ?? false,
-          "custom_whitelist": customWhitelist
+          "custom_whitelist": customWhitelist,
+          "app_policies": policies,
+          "feature_flags": featureFlags,
         };
       }
-      return {"success": false}; 
+      return {"success": false};
     } catch (e) {
-      return {"success": false}; 
+      return {"success": false};
+    }
+  }
+
+  // Reports today's per-app foreground usage to the server (feeds the dashboard
+  // and the app_usage history). usage = { package: totalMsToday }.
+  static Future<void> sendAppUsage(String empId, Map<String, int> usage) async {
+    if (usage.isEmpty) return;
+    try {
+      final date = DateTime.now().toIso8601String().substring(0, 10); // YYYY-MM-DD
+      final list = usage.entries
+          .where((e) => e.value > 0)
+          .map((e) => {"package": e.key, "totalTimeMs": e.value, "lastUsed": 0})
+          .toList();
+      if (list.isEmpty) return;
+      await http.post(
+        Uri.parse("$baseUrl/api/app-usage"),
+        headers: {"Content-Type": "application/json", "x-api-key": apiKey},
+        body: json.encode({"empId": empId, "date": date, "usage": list}),
+      ).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      // Offline fallback
     }
   }
 

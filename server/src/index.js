@@ -13,6 +13,10 @@ const settingsRoutes  = require("./routes/settings");
 let appUsageRoutes;
 try { appUsageRoutes = require("./routes/appUsage"); } catch(e) { console.log("appUsage route not found, skipping"); }
 
+// Per-app time-limit policies — load safely too.
+let policiesRoutes;
+try { policiesRoutes = require("./routes/policies"); } catch(e) { console.log("policies route not found, skipping"); }
+
 const app  = express();
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === "production";
@@ -71,6 +75,7 @@ app.use("/api/auth",       authRoutes);
 app.use("/api",            agentRoutes);
 app.use("/api",            settingsRoutes);
 if (appUsageRoutes) app.use("/api/app-usage", appUsageRoutes);
+if (policiesRoutes) app.use("/api/policies", policiesRoutes);
 
 // ─── HEALTH ──────────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
@@ -102,6 +107,7 @@ initSchema().finally(() => app.listen(PORT, () => {
   console.log("║             /api/dashboard/*          ║");
   console.log("║             /api/qr-current           ║");
   console.log("║             /api/app-usage            ║");
+  console.log("║             /api/policies/*           ║");
   console.log("╚═══════════════════════════════════════╝");
   console.log("");
 }));

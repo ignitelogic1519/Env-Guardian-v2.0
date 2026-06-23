@@ -64,6 +64,8 @@ void onStart(ServiceInstance service) async {
       if (agentData['success'] == true) {
         await prefs.setBool('admin_lock', agentData['admin_lock'] ?? false);
         await prefs.setStringList('custom_whitelist', (agentData['custom_whitelist'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? []);
+        await prefs.setString('app_policies', json.encode(agentData['app_policies'] ?? []));
+        await prefs.setString('feature_flags', json.encode(agentData['feature_flags'] ?? {}));
       }
     } catch (_) {}
 
@@ -161,10 +163,19 @@ void onStart(ServiceInstance service) async {
 
     try {
       Set<String> mergedWhitelist = {
-        ...(prefs.getStringList('global_whitelist') ?? []), 
+        ...(prefs.getStringList('global_whitelist') ?? []),
         ...(prefs.getStringList('custom_whitelist') ?? [])
       };
       if (isLocked || !isCompliant) mergedWhitelist.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
+
+      // ── Per-app time limits ──────────────────────────────────────────────
+      // When the admin has enabled this feature for the user, read today's
+      // per-app usage and block any allowed app that is disabled or has used
+      // up its daily budget. Also report usage so the dashboard can show it.
+      if (insideGeofence) {
+        await enforceTimeLimits(prefs, empId, mergedWhitelist);
+      }
+
       await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": mergedWhitelist.toList()});
     } catch (e) { debugPrint("Blocker Error: $e"); }
 
@@ -188,6 +199,40 @@ void onStart(ServiceInstance service) async {
     }
     service.invoke('update', {"lat": cLat, "lng": cLng, "inside": insideGeofence});
   });
+}
+
+// Applies per-app daily time limits set by the admin.
+// Removes from [whitelist] any app that is policy-disabled or has exhausted its
+// daily budget, so the native blocker will block it. Also reports usage upstream.
+Future<void> enforceTimeLimits(SharedPreferences prefs, String empId, Set<String> whitelist) async {
+  try {
+    final Map<String, dynamic> flags = json.decode(prefs.getString('feature_flags') ?? '{}') as Map<String, dynamic>;
+    if (flags['app_time_limits'] != true) return; // feature not unlocked for this user
+
+    final List<dynamic> policies = json.decode(prefs.getString('app_policies') ?? '[]') as List<dynamic>;
+    if (policies.isEmpty) return;
+
+    // Today's per-app foreground time (ms), from the native UsageStatsManager.
+    final Map<dynamic, dynamic> raw = await platformBlocker.invokeMethod('getTodayUsage') ?? {};
+    final Map<String, int> usage = raw.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+
+    for (final pol in policies) {
+      final String pkg = (pol['package'] ?? '').toString();
+      if (pkg.isEmpty) continue;
+      final bool enabled = pol['enabled'] ?? true;
+      final int limit = (pol['daily_limit_ms'] as num?)?.toInt() ?? 0;
+      final int used = usage[pkg] ?? 0;
+      // Disabled app, or used up its daily budget → block it (drop from whitelist).
+      if (!enabled || (limit > 0 && used >= limit)) {
+        whitelist.remove(pkg);
+      }
+    }
+
+    // Report usage to the server (powers the dashboard's usage history).
+    if (empId.isNotEmpty) await CloudSync.sendAppUsage(empId, usage);
+  } catch (_) {
+    // Usage access not granted yet, or platform error — fail open (no extra blocks).
+  }
 }
 
 // Formats a millisecond duration as HH:MM:SS for the zone timer.

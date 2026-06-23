@@ -162,7 +162,7 @@ router.post("/qr-verify", requireApiKey, async (req, res) => {
 router.get("/agent-status/:empId", requireApiKey, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT admin_lock, auto_lock, custom_whitelist
+      `SELECT admin_lock, auto_lock, custom_whitelist, feature_flags
        FROM public.agents WHERE emp_id = $1`,
       [req.params.empId]
     );
@@ -170,11 +170,25 @@ router.get("/agent-status/:empId", requireApiKey, async (req, res) => {
       return res.status(404).json({ success: false, error: "Agent not found" });
     }
     const row = result.rows[0];
+
+    // Per-app time-limit policy for this employee (only the enabled rows).
+    const pol = await pool.query(
+      `SELECT package, daily_limit_ms, enabled
+       FROM public.app_policies WHERE emp_id = $1`,
+      [req.params.empId]
+    );
+
     res.json({
       success: true,
       admin_lock: row.admin_lock ?? false,
       auto_lock: row.auto_lock ?? false,
       custom_whitelist: row.custom_whitelist ?? [],
+      feature_flags: row.feature_flags ?? {},
+      app_policies: pol.rows.map((r) => ({
+        package: r.package,
+        daily_limit_ms: parseInt(r.daily_limit_ms, 10) || 0,
+        enabled: r.enabled,
+      })),
     });
   } catch (err) {
     console.error("[AGENTS] Agent-status error:", err.message);
