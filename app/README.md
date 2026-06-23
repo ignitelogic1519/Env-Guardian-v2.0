@@ -2,19 +2,36 @@
 
 The Flutter mobile application that runs on each employee's device.
 
-> ⏳ **Status:** placeholder. The application code will be added in a later step
-> (Step 5 of the roadmap in the root [README](../README.md)).
+> ✅ **Status:** baseline added. This is the working version 1.0 app, brought in
+> unchanged as our starting point (Step 5a). Next we connect it to the new server
+> (Step 5b), then refactor into a modular structure and add new features (Step 6).
 
-## What this app will do
+## What this app does
 
-- Register the device with the central server.
-- Continuously run in the background and report device status (a "heartbeat").
-- Detect when the device enters a restricted zone (geofence).
-- Enforce a zero-trust policy in the zone: block non-approved apps.
-- Require QR-code authentication to operate inside the zone.
-- Track time spent in the zone and per-app usage.
+- Registers the device with the central server.
+- Runs in the background and reports device status (a "heartbeat").
+- Detects when the device enters a restricted zone (geofence).
+- Enforces a zero-trust policy in the zone: blocks non-approved apps.
+- Requires QR-code authentication to operate inside the zone.
 
-## Planned structure (feature-first)
+## Key files (current baseline)
 
-Each feature will live in its own folder so the code is easy to manage and can be
-shared across developers. The detailed layout will be added together with the code.
+| File | Purpose |
+|------|---------|
+| `lib/main.dart`       | The whole app: setup, command center, blocker logic, UI |
+| `lib/cloud_sync.dart` | Talks to the backend server (register, heartbeat, settings) |
+| `pubspec.yaml`        | App dependencies |
+| `android/`            | Android project + native `AppBlockerService` (the enforcer) |
+
+> ⚠️ This baseline still points at the old server URL and uses the old API key.
+> Those are updated in Step 5b so the app talks to *your* new Render server.
+
+## Building the app (for later)
+
+Requires the Flutter SDK. From this `app/` folder:
+
+```bash
+flutter pub get      # download dependencies
+flutter run          # run on a connected device/emulator
+flutter build apk    # build an installable APK
+```

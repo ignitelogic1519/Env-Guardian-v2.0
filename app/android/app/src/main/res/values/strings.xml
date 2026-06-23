@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">Env Guardian uses this service to monitor app launches and enforce regional restrictions for security purposes.</string>
+</resources>
