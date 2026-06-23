@@ -17,6 +17,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
 import 'cloud_sync.dart';
+import 'core/theme/neumorphic.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 const platformBlocker = MethodChannel('com.example.env_guardian/blocker');
@@ -258,7 +259,7 @@ bool _isPointInPolygon(Position pt, List<Offset> poly) {
 
 class EnvGuardianApp extends StatelessWidget {
   final bool isSealed; const EnvGuardianApp({super.key, required this.isSealed});
-  @override Widget build(BuildContext context) => MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: const Color(0xFF121212), primaryColor: Colors.blueAccent), home: isSealed ? const CommandCenterScreen() : const AdminSetupScreen());
+  @override Widget build(BuildContext context) => MaterialApp(debugShowCheckedModeBanner: false, theme: buildNeuTheme(), home: isSealed ? const CommandCenterScreen() : const AdminSetupScreen());
 }
 
 class AdminSetupScreen extends StatefulWidget { const AdminSetupScreen({super.key}); @override State<AdminSetupScreen> createState() => _AdminSetupScreenState(); }
@@ -320,7 +321,7 @@ class CommandCenterScreen extends StatefulWidget { const CommandCenterScreen({su
 class _CommandCenterScreenState extends State<CommandCenterScreen> {
   int _tabIndex = 0; double _lat = 0, _lng = 0;
   bool _insideGeofence = false, _isPhysicallyVerified = false, _enforcerAlive = false, _isInitializing = true, _autoLock = false, _adminLock = false;
-  bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true;
+  bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true, _usageOk = false;
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
 
@@ -351,6 +352,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Future<void> _reqC() async { await Permission.camera.request(); _sync(); }
   Future<void> _reqGps() async { await Geolocator.openLocationSettings(); _sync(); }
   Future<void> _reqAccess() async { await platformBlocker.invokeMethod('openAccessibilitySettings'); _sync(); }
+  Future<void> _reqUsage() async { try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _sync(); }
 
   Future<void> _sync() async {
     final p = await SharedPreferences.getInstance(); await p.reload();
@@ -375,6 +377,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     } catch (_) {
       a = (DateTime.now().millisecondsSinceEpoch - (int.tryParse(p.getString('enforcer_last_pulse') ?? '0') ?? 0)) < 90000;
     }
+
+    bool ua = false;
+    try { ua = await platformBlocker.invokeMethod('hasUsageAccess'); } catch (_) {}
     
     List<Offset> poly = (json.decode(p.getString('geofence_polygon') ?? '[]') as List).map((e) => Offset((e['lat'] as num).toDouble(), (e['lng'] as num).toDouble())).toList();
     
@@ -388,7 +393,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     if (aL || adL || !comp) merged.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
-    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _verifiedSince = p.getInt('verified_since') ?? 0; });
+    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _verifiedSince = p.getInt('verified_since') ?? 0; });
   }
 
   Future<void> _unfreezeDevice() async {
@@ -409,7 +414,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Widget _buildStatusTab() {
     if (_isInitializing) return const Center(child: CircularProgressIndicator());
     if (_adminLock) return _buildFrozenScreen(true); if (_autoLock) return _buildFrozenScreen(false);
-    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), Card(color: Colors.grey[900], child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO)]))])));
+    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), NeuCard(padding: const EdgeInsets.symmetric(vertical: 6), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage)]))])));
     
     if (!_insideGeofence) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shield, size: 100, color: Colors.greenAccent), Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)), Text("Move to Restricted Zone to authorize.")]));
     
@@ -420,9 +425,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
         const Text("SECURE ZONE ACTIVE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
         const Text("Zero Trust Perimeter Engaged.", style: TextStyle(color: Colors.white70)),
         const SizedBox(height: 36),
-        const Text("TIME IN ZONE", style: TextStyle(color: Colors.white38, fontSize: 14, letterSpacing: 3)),
-        const SizedBox(height: 4),
-        Text(elapsed, style: const TextStyle(fontSize: 46, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+        NeuCard(padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text("TIME IN ZONE", style: TextStyle(color: NeuColors.textMuted, fontSize: 14, letterSpacing: 3)),
+          const SizedBox(height: 6),
+          Text(elapsed, style: const TextStyle(fontSize: 46, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+        ])),
       ]));
     }
     
