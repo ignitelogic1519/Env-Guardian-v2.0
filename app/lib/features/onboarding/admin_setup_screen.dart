@@ -1,0 +1,69 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:http/http.dart' as http;
+import '../../cloud_sync.dart';
+import '../../core/platform.dart';
+import '../command_center/command_center_screen.dart';
+
+/// First-run screen ("Sentinel Initiation"): collects identity, walks the user
+/// through every required permission, then registers + seals the device.
+class AdminSetupScreen extends StatefulWidget { const AdminSetupScreen({super.key}); @override State<AdminSetupScreen> createState() => _AdminSetupScreenState(); }
+class _AdminSetupScreenState extends State<AdminSetupScreen> {
+  bool _nOk = false, _fOk = false, _bOk = false, _oOk = false, _cOk = false, _aOk = false;
+  final TextEditingController _nameCtrl = TextEditingController(), _empIdCtrl = TextEditingController(); Timer? _setupTimer;
+
+  @override void initState() {
+    super.initState();
+    _reqN();
+    _setupTimer = Timer.periodic(const Duration(seconds: 2), (_) => _checkAccessibility());
+    _nameCtrl.addListener(() => setState(() {}));
+    _empIdCtrl.addListener(() => setState(() {}));
+  }
+
+  Future<void> _checkAccessibility() async {
+    try {
+      final bool isAlive = await platformBlocker.invokeMethod('checkEnforcerStatus');
+      if (mounted) setState(() => _aOk = isAlive);
+    } catch (e) {
+      debugPrint("Live wire check failed: $e");
+    }
+  }
+
+  Future<void> _reqN() async { final s = await Permission.notification.request(); setState(() => _nOk = s.isGranted); }
+  Future<void> _reqF() async { final s = await Permission.location.request(); setState(() => _fOk = s.isGranted); }
+  Future<void> _reqB() async { if (!_fOk) return; final s = await Permission.locationAlways.request(); if (s.isGranted) await Permission.ignoreBatteryOptimizations.request(); setState(() => _bOk = s.isGranted); }
+  Future<void> _reqO() async { final s = await Permission.systemAlertWindow.request(); setState(() => _oOk = s.isGranted); }
+  Future<void> _reqC() async { final s = await Permission.camera.request(); setState(() => _cOk = s.isGranted); }
+
+  @override Widget build(BuildContext context) {
+    bool canSeal = _nOk && _fOk && _bOk && _oOk && _cOk && _aOk && _nameCtrl.text.trim().isNotEmpty && _empIdCtrl.text.trim().isNotEmpty;
+    return Scaffold(
+      appBar: AppBar(title: const Text("Sentinel Initiation"), centerTitle: true),
+      body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(30), child: Column(children: [
+        const Icon(Icons.security, size: 80, color: Colors.blueAccent), const SizedBox(height: 30),
+        TextField(controller: _nameCtrl, decoration: InputDecoration(labelText: "Employee Name", prefixIcon: const Icon(Icons.person), filled: true, fillColor: Colors.grey[900], border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), const SizedBox(height: 15),
+        TextField(controller: _empIdCtrl, decoration: InputDecoration(labelText: "Employee ID", prefixIcon: const Icon(Icons.badge), filled: true, fillColor: Colors.grey[900], border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), const SizedBox(height: 30),
+        _permTile("0. Notifications", _nOk, _reqN), _permTile("1. Location", _fOk, _reqF), _permTile("2. Background & Battery", _bOk, _reqB), _permTile("3. System Overlay", _oOk, _reqO), _permTile("4. Camera", _cOk, _reqC),
+        ListTile(title: const Text("5. Accessibility Enforcer"), trailing: Icon(_aOk ? Icons.check_circle : Icons.open_in_new, color: _aOk ? Colors.green : Colors.orangeAccent), onTap: () => platformBlocker.invokeMethod('openAccessibilitySettings')), const SizedBox(height: 50),
+        if (canSeal) ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, minimumSize: const Size(double.infinity, 50)), onPressed: () async {
+          final p = await SharedPreferences.getInstance(); final deviceInfo = DeviceInfoPlugin(); String dId = "Unknown ID", dModel = "Unknown Model", androidVersion = "Unknown"; int sdkInt = 0;
+          if (Platform.isAndroid) { AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo; dId = androidInfo.id; dModel = "${androidInfo.manufacturer} ${androidInfo.model}"; androidVersion = androidInfo.version.release; sdkInt = androidInfo.version.sdkInt; }
+          int now = DateTime.now().millisecondsSinceEpoch; String eName = _nameCtrl.text.trim(), eId = _empIdCtrl.text.trim();
+          try { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Forging identity...")));
+            final response = await http.post(Uri.parse("${CloudSync.baseUrl}/api/register"), headers: {"Content-Type": "application/json", "x-api-key": CloudSync.apiKey}, body: json.encode({"empName": eName, "empId": eId, "deviceId": dId, "deviceModel": dModel, "androidVersion": androidVersion, "sdkInt": sdkInt, "registeredAt": now}));
+            if (response.statusCode == 201) { await p.setString('emp_name', eName); await p.setString('emp_id', eId); await p.setString('device_id', dId); await p.setString('device_model', dModel); await p.setString('android_version', androidVersion); await p.setInt('sdk_int', sdkInt); await p.setInt('registration_time', now); await p.setInt('last_ghost_footprint', DateTime.now().millisecondsSinceEpoch); await p.setBool('is_sealed', true); await FlutterBackgroundService().startService(); if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CommandCenterScreen())); }
+            else { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("SERVER REJECTED: ${json.decode(response.body)['message']}"), backgroundColor: Colors.red)); }
+          } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("FATAL: Could not connect to Server."), backgroundColor: Colors.red)); }
+        }, child: const Text("SEAL DEVICE & REGISTER", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))
+      ]))),
+    );
+  }
+  Widget _permTile(String t, bool ok, VoidCallback tap) => ListTile(title: Text(t), trailing: Icon(ok ? Icons.check_circle : Icons.circle_outlined, color: ok ? Colors.green : Colors.red), onTap: ok ? null : tap);
+  @override void dispose() { _setupTimer?.cancel(); _nameCtrl.dispose(); _empIdCtrl.dispose(); super.dispose(); }
+}

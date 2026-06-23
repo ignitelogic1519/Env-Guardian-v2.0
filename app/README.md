@@ -14,17 +14,35 @@ The Flutter mobile application that runs on each employee's device.
 - Enforces a zero-trust policy in the zone: blocks non-approved apps.
 - Requires QR-code authentication to operate inside the zone.
 
-## Key files (current baseline)
+## Project structure (feature-first)
 
-| File | Purpose |
+The app is organised so each piece of functionality lives in its own file and
+can be owned/extended independently by different developers:
+
+```
+lib/
+├── main.dart                  # entry point only (bootstrap)
+├── app.dart                   # root MaterialApp + which screen to show
+├── cloud_sync.dart            # all backend API calls
+├── core/
+│   ├── platform.dart          # the native platform channel (shared)
+│   ├── background_service.dart# the always-on "ghost" monitor + helpers
+│   └── theme/
+│       └── neumorphic.dart    # neumorphic design system (NeuCard, theme…)
+└── features/
+    ├── onboarding/            # first-run setup & device registration
+    ├── command_center/        # main tabbed screen, QR auth, zone timer
+    ├── armory/                # admin app-whitelist vault
+    ├── map/                   # restricted-zone map
+    └── logs/                  # live allow/block log feed
+```
+
+| Area | Purpose |
 |------|---------|
-| `lib/main.dart`       | The whole app: setup, command center, blocker logic, UI |
-| `lib/cloud_sync.dart` | Talks to the backend server (register, heartbeat, settings) |
-| `pubspec.yaml`        | App dependencies |
-| `android/`            | Android project + native `AppBlockerService` (the enforcer) |
-
-> ⚠️ This baseline still points at the old server URL and uses the old API key.
-> Those are updated in Step 5b so the app talks to *your* new Render server.
+| `core/background_service.dart` | The 10-second monitor loop: location, compliance, time-limit enforcement, notifications |
+| `core/platform.dart`           | Shared `MethodChannel` to the native Android blocker / usage-stats |
+| `features/*`                   | One folder per feature — safe to assign to different developers |
+| `android/`                     | Android project + native `AppBlockerService` (the enforcer) + usage-stats |
 
 ## Building the app (for later)
 
