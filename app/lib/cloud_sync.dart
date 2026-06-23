@@ -3,14 +3,14 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class CloudSync {
-  static const String baseUrl = "https://envguardian-server.onrender.com";
+  static const String baseUrl = "https://envguardian-server-j8yv.onrender.com";
   static const String settingsUrl = "$baseUrl/api/settings";
   static const String heartbeatUrl = "$baseUrl/api/heartbeat";
   static const String statusUrl = "$baseUrl/api/agent-status";
   static const String clearAutoLockUrl = "$baseUrl/api/clear-auto-lock"; 
   static const String updateWhitelistUrl = "$baseUrl/api/update-whitelist"; // <-- NEW ROUTE
 
-  static const String apiKey = "FoldedSteelSecret2026";
+  static const String apiKey = "c6a725cf024ed9560e57a26d8b661700e10400f7c1ea1eaf";
 
   static Future<void> syncSettings() async {
     final p = await SharedPreferences.getInstance();
