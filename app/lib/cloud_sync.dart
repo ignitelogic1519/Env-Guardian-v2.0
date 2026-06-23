@@ -90,13 +90,15 @@ class CloudSync {
 
   static Future<void> sendPulse(String empId, double lat, double lng, bool inZone, bool enforcerActive, List<String> installedApps, bool autoLock, Map<String, bool> compliance) async {
     try {
+      final p = await SharedPreferences.getInstance();
       await http.post(
         Uri.parse(heartbeatUrl),
         headers: {"Content-Type": "application/json", "x-api-key": apiKey},
         body: json.encode({
           "empId": empId, "lat": lat, "lng": lng, "inZone": inZone, "enforcerActive": enforcerActive,
           "timestamp": DateTime.now().millisecondsSinceEpoch, "installedApps": installedApps,
-          "autoLock": autoLock, "compliance": compliance    
+          "autoLock": autoLock, "compliance": compliance,
+          "androidVersion": p.getString('android_version'), "sdkInt": p.getInt('sdk_int')
         }),
       ).timeout(const Duration(seconds: 5));
     } catch (e) {

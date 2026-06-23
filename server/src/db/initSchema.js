@@ -46,6 +46,8 @@ const STATEMENTS = [
      emp_id            varchar(50)  NOT NULL,
      device_id         varchar(255) NOT NULL,
      device_model      varchar(100),
+     android_version   varchar(20),
+     sdk_int           integer,
      registered_at     bigint,
      current_lat       double precision,
      current_lng       double precision,
@@ -90,6 +92,8 @@ const STATEMENTS = [
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS last_pulse bigint`,
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS registered_at bigint`,
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS device_model varchar(100)`,
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS android_version varchar(20)`,
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS sdk_int integer`,
   // users table backfills (in case an older/partial users table exists)
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS org_name varchar(100) DEFAULT 'Env Guardian'`,
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role varchar(20) DEFAULT 'admin'`,

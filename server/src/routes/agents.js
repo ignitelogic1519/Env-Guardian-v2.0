@@ -19,6 +19,8 @@ router.post("/register", requireApiKey, async (req, res) => {
     const emp_id       = pick(req.body.emp_id, req.body.empId);
     const device_id    = pick(req.body.device_id, req.body.deviceId);
     const device_model = pick(req.body.device_model, req.body.deviceModel);
+    const android_version = pick(req.body.android_version, req.body.androidVersion);
+    const sdk_int = pick(req.body.sdk_int, req.body.sdkInt);
     const registered_at = pick(req.body.registered_at, req.body.registeredAt, Date.now());
 
     if (!emp_name || !emp_id || !device_id || !device_model) {
@@ -28,15 +30,17 @@ router.post("/register", requireApiKey, async (req, res) => {
     // Upsert keyed on device_id (which has a UNIQUE constraint).
     const result = await pool.query(
       `INSERT INTO public.agents
-         (emp_name, emp_id, device_id, device_model, registered_at, last_pulse)
-       VALUES ($1, $2, $3, $4, $5, $5)
+         (emp_name, emp_id, device_id, device_model, android_version, sdk_int, registered_at, last_pulse)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
        ON CONFLICT (device_id) DO UPDATE SET
-         emp_name     = EXCLUDED.emp_name,
-         emp_id       = EXCLUDED.emp_id,
-         device_model = EXCLUDED.device_model,
-         last_pulse   = EXCLUDED.last_pulse
+         emp_name        = EXCLUDED.emp_name,
+         emp_id          = EXCLUDED.emp_id,
+         device_model    = EXCLUDED.device_model,
+         android_version = EXCLUDED.android_version,
+         sdk_int         = EXCLUDED.sdk_int,
+         last_pulse      = EXCLUDED.last_pulse
        RETURNING *`,
-      [emp_name, emp_id, device_id, device_model, registered_at]
+      [emp_name, emp_id, device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at]
     );
 
     // APK expects HTTP 201 on a successful registration.
@@ -61,6 +65,8 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
     const installed   = pick(req.body.installed_apps, req.body.installedApps);
     const enforcer    = pick(req.body.enforcer_active, req.body.enforcerActive);
     const auto_lock   = pick(req.body.auto_lock, req.body.autoLock);
+    const android_version = pick(req.body.android_version, req.body.androidVersion);
+    const sdk_int     = pick(req.body.sdk_int, req.body.sdkInt);
 
     if (!device_id && !emp_id) {
       return res.status(400).json({ success: false, error: "device_id or empId is required" });
@@ -80,6 +86,8 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
          installed_apps    = COALESCE($6::jsonb, installed_apps),
          enforcer_active   = COALESCE($7, enforcer_active),
          auto_lock         = COALESCE($8, auto_lock),
+         android_version   = COALESCE($10, android_version),
+         sdk_int           = COALESCE($11, sdk_int),
          last_pulse        = $9
        WHERE ${matchCol} = $1
        RETURNING id, emp_name, emp_id, device_id, last_pulse, admin_lock, auto_lock`,
@@ -93,6 +101,8 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
         enforcer ?? null,
         auto_lock ?? null,
         now,
+        android_version ?? null,
+        sdk_int ?? null,
       ]
     );
 
@@ -221,6 +231,7 @@ router.get("/dashboard/agents", requireAuth, async (req, res) => {
     const result = await pool.query(
       `SELECT
          id, emp_name, emp_id, device_id, device_model,
+         android_version, sdk_int,
          registered_at, current_lat, current_lng, in_zone,
          enforcer_active, last_pulse, installed_apps,
          admin_lock, auto_lock, compliance_status, custom_whitelist,
