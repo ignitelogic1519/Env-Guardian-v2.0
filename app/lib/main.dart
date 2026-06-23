@@ -109,24 +109,35 @@ void onStart(ServiceInstance service) async {
         insideGeofence = _isPointInPolygon(pos, poly);
         
         if (!insideGeofence) {
-          await prefs.setBool('is_physically_verified', false); 
+          await prefs.setBool('is_physically_verified', false);
+          await prefs.remove('verified_since');
         }
-        
-        await prefs.setBool('in_restricted_zone', insideGeofence); 
+
+        await prefs.setBool('in_restricted_zone', insideGeofence);
         await prefs.setDouble('current_lat', cLat); 
         await prefs.setDouble('current_lng', cLng);
-      } else { 
-        await prefs.setBool('in_restricted_zone', false); 
+      } else {
+        await prefs.setBool('in_restricted_zone', false);
         await prefs.setBool('is_physically_verified', false);
+        await prefs.remove('verified_since');
       }
-    } catch (e) { 
+    } catch (e) {
       cLat = prefs.getDouble('current_lat') ?? 0;
       cLng = prefs.getDouble('current_lng') ?? 0;
       insideGeofence = prefs.getBool('in_restricted_zone') ?? false;
-      if (!insideGeofence) await prefs.setBool('is_physically_verified', false);
+      if (!insideGeofence) { await prefs.setBool('is_physically_verified', false); await prefs.remove('verified_since'); }
     }
 
     bool isPhysicallyVerified = prefs.getBool('is_physically_verified') ?? false;
+
+    // Zone timer: when the user is verified, ensure a start timestamp exists,
+    // then compute the elapsed time-in-zone for display in the notification.
+    int verifiedSince = prefs.getInt('verified_since') ?? 0;
+    if (isPhysicallyVerified && verifiedSince == 0) {
+      verifiedSince = DateTime.now().millisecondsSinceEpoch;
+      await prefs.setInt('verified_since', verifiedSince);
+    }
+    String zoneClock = (isPhysicallyVerified && verifiedSince > 0) ? fmtDuration(DateTime.now().millisecondsSinceEpoch - verifiedSince) : "";
 
     List<String> inventory = [];
     if (insideGeofence) {
@@ -162,7 +173,7 @@ void onStart(ServiceInstance service) async {
     if (isLocked) { currentNotif = "⛔ DEVICE FROZEN. Action Required."; } 
     else if (!isCompliant) { currentNotif = "⚠️ COMPLIANCE FAILED."; } 
     else if (insideGeofence && !isPhysicallyVerified) { currentNotif = "🔴 IN ZONE - Scan QR to Authenticate"; } 
-    else if (insideGeofence && isPhysicallyVerified) { currentNotif = "🔴 SECURE ZONE ACTIVE"; } 
+    else if (insideGeofence && isPhysicallyVerified) { currentNotif = "🔴 SECURE ZONE ACTIVE  •  ⏱ $zoneClock"; }
     else { currentNotif = "Status: 🟢 SAFE ZONE"; }
 
     if (lastNotifState != currentNotif) {
@@ -177,6 +188,16 @@ void onStart(ServiceInstance service) async {
     }
     service.invoke('update', {"lat": cLat, "lng": cLng, "inside": insideGeofence});
   });
+}
+
+// Formats a millisecond duration as HH:MM:SS for the zone timer.
+String fmtDuration(int ms) {
+  if (ms < 0) ms = 0;
+  final d = Duration(milliseconds: ms);
+  final h = d.inHours.toString().padLeft(2, '0');
+  final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+  final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return "$h:$m:$s";
 }
 
 bool _isPointInPolygon(Position pt, List<Offset> poly) {
@@ -255,7 +276,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   int _tabIndex = 0; double _lat = 0, _lng = 0;
   bool _insideGeofence = false, _isPhysicallyVerified = false, _enforcerAlive = false, _isInitializing = true, _autoLock = false, _adminLock = false;
   bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true;
-  List<Offset> _poly = []; Timer? _t; final TextEditingController _unlockPassCtrl = TextEditingController();
+  List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
 
   @override void initState() { 
@@ -270,8 +291,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     }); 
     
     _sync(); 
-    _t = Timer.periodic(const Duration(seconds: 5), (_) => _sync()); 
-    Future.delayed(const Duration(seconds: 7), () { if (mounted) setState(() => _isInitializing = false); }); 
+    _t = Timer.periodic(const Duration(seconds: 5), (_) => _sync());
+    // Ticks once per second to refresh the live "time in zone" clock on screen.
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) { if (mounted && _insideGeofence && _isPhysicallyVerified) setState(() {}); });
+    Future.delayed(const Duration(seconds: 7), () { if (mounted) setState(() => _isInitializing = false); });
   }
   
   Future<void> _loadData() async { final p = await SharedPreferences.getInstance(); if (mounted) setState(() { _empName = p.getString('emp_name') ?? ""; _empId = p.getString('emp_id') ?? ""; _deviceId = p.getString('device_id') ?? ""; _deviceModel = p.getString('device_model') ?? ""; _poly = (json.decode(p.getString('geofence_polygon') ?? '[]') as List).map((p) => Offset((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble())).toList(); }); }
@@ -320,7 +343,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     if (aL || adL || !comp) merged.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
-    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; });
+    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _verifiedSince = p.getInt('verified_since') ?? 0; });
   }
 
   Future<void> _unfreezeDevice() async {
@@ -345,7 +368,18 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     
     if (!_insideGeofence) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shield, size: 100, color: Colors.greenAccent), Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)), Text("Move to Restricted Zone to authorize.")]));
     
-    if (_insideGeofence && _isPhysicallyVerified) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.verified_user, size: 100, color: Colors.blueAccent), Text("SECURE ZONE ACTIVE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blueAccent)), Text("Zero Trust Perimeter Engaged.", style: TextStyle(color: Colors.white70))]));
+    if (_insideGeofence && _isPhysicallyVerified) {
+      final String elapsed = _verifiedSince > 0 ? fmtDuration(DateTime.now().millisecondsSinceEpoch - _verifiedSince) : "00:00:00";
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.verified_user, size: 100, color: Colors.blueAccent),
+        const Text("SECURE ZONE ACTIVE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        const Text("Zero Trust Perimeter Engaged.", style: TextStyle(color: Colors.white70)),
+        const SizedBox(height: 36),
+        const Text("TIME IN ZONE", style: TextStyle(color: Colors.white38, fontSize: 14, letterSpacing: 3)),
+        const SizedBox(height: 4),
+        Text(elapsed, style: const TextStyle(fontSize: 46, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+      ]));
+    }
     
     return Column(children: [const Padding(padding: EdgeInsets.all(20), child: Text("SCAN TO AUTHENTICATE", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.greenAccent))), Expanded(child: Container(margin: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.greenAccent, width: 4), borderRadius: BorderRadius.circular(20)), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: MobileScanner(onDetect: (cap) async { 
       for (final b in cap.barcodes) { 
@@ -353,18 +387,20 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
         final p = await SharedPreferences.getInstance(); 
         String expectedSecret = p.getString('qr_secret') ?? 'ENV_GUARDIAN_SECURE_ZONE'; 
         
-        if (b.rawValue == expectedSecret) { 
-          await p.setBool('is_physically_verified', true); 
-          setState(() { _isPhysicallyVerified = true; }); 
-          break; 
-        } 
+        if (b.rawValue == expectedSecret) {
+          final int nowMs = DateTime.now().millisecondsSinceEpoch;
+          await p.setBool('is_physically_verified', true);
+          await p.setInt('verified_since', nowMs);
+          setState(() { _isPhysicallyVerified = true; _verifiedSince = nowMs; });
+          break;
+        }
       } 
     })))) , const Padding(padding: EdgeInsets.only(bottom: 30), child: Text("Position Static QR code inside frame.", style: TextStyle(color: Colors.white54)))]);
   }
 
   Widget _buildFrozenScreen(bool isAdmin) => Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.lock_person, size: 100, color: Colors.redAccent), Text(isAdmin ? "ADMIN LOCK" : "AUTO-LOCK", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.redAccent)), Text(isAdmin ? "Banishment Decree issued by Server." : "Time Anomaly Detected.", style: const TextStyle(color: Colors.white70)), const SizedBox(height: 40), if (!isAdmin) ...[TextField(controller: _unlockPassCtrl, obscureText: true, decoration: InputDecoration(labelText: "Admin Unfreeze Password", filled: true, fillColor: Colors.grey[900])), const SizedBox(height: 20), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 60)), icon: const Icon(Icons.key), label: const Text("UNFREEZE"), onPressed: _unfreezeDevice)] else const Icon(Icons.cloud_off, size: 50, color: Colors.white30), const SizedBox(height: 30), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800], foregroundColor: Colors.white), onPressed: () => platformBlocker.invokeMethod('openAccessibilitySettings'), child: const Text("Open Phone Settings"))])));
   Widget _shieldTile(String t, bool ok, VoidCallback tap) => ListTile(dense: true, title: Text(t, style: const TextStyle(color: Colors.white)), trailing: Icon(ok ? Icons.check_circle : Icons.open_in_new, color: ok ? Colors.green : Colors.orangeAccent), onTap: ok ? null : tap);
-  @override void dispose() { _t?.cancel(); _unlockPassCtrl.dispose(); super.dispose(); }
+  @override void dispose() { _t?.cancel(); _clock?.cancel(); _unlockPassCtrl.dispose(); super.dispose(); }
 }
 
 class ArmoryTab extends StatefulWidget { const ArmoryTab({super.key}); @override State<ArmoryTab> createState() => _ArmoryTabState(); }
