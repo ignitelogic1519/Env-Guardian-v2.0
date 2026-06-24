@@ -15,7 +15,7 @@ class CloudSync {
   static Future<void> syncSettings() async {
     final p = await SharedPreferences.getInstance();
     try {
-      final response = await http.get(Uri.parse(settingsUrl)).timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse(settingsUrl), headers: {"x-api-key": apiKey}).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final settings = data['settings'];
