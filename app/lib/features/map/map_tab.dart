@@ -3,21 +3,35 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 /// Map tab — shows the restricted-zone polygon (red boundary + red vertex
-/// points) and the device's current location.
+/// points), the device's current location, and whether the device is currently
+/// inside the zone.
 ///
-/// The map auto-fits to the configured zone so it is always visible, even when
-/// the device is far away from it. If no zone is configured yet, a clear empty
-/// state is shown instead of an endless spinner.
+/// The camera auto-fits to include BOTH the zone and the device, so the zone is
+/// always visible and you can always see where you are relative to it. If no
+/// zone is configured yet, a clear empty state is shown instead of a spinner.
 class MapTab extends StatelessWidget {
   final double currentLat, currentLng;
   final List<Offset> polygonPoints;
   const MapTab({super.key, required this.currentLat, required this.currentLng, required this.polygonPoints});
+
+  // Ray-casting point-in-polygon test (lat = y, lng = x).
+  static bool _inside(LatLng pt, List<LatLng> poly) {
+    if (poly.length < 3) return false;
+    bool inside = false;
+    for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      final bool intersect = (poly[i].latitude > pt.latitude) != (poly[j].latitude > pt.latitude) &&
+          (pt.longitude < (poly[j].longitude - poly[i].longitude) * (pt.latitude - poly[i].latitude) / (poly[j].latitude - poly[i].latitude) + poly[i].longitude);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
 
   @override
   Widget build(BuildContext context) {
     final List<LatLng> pts = polygonPoints.map((p) => LatLng(p.dx, p.dy)).toList();
     final bool hasZone = pts.length >= 3;
     final bool hasGps = currentLat != 0 || currentLng != 0;
+    final LatLng? me = hasGps ? LatLng(currentLat, currentLng) : null;
 
     // Nothing to show yet: no GPS fix AND no zone configured.
     if (!hasZone && !hasGps) {
@@ -32,16 +46,19 @@ class MapTab extends StatelessWidget {
       );
     }
 
-    final LatLng fallbackCenter = hasGps ? LatLng(currentLat, currentLng) : pts.first;
+    final bool amInside = (hasZone && me != null) && _inside(me, pts);
+
+    // Frame both the zone and the device so both are always visible.
+    final List<LatLng> fitPts = [...pts, if (me != null) me];
+    final bool useFit = fitPts.length >= 2;
 
     return Stack(children: [
       FlutterMap(
         options: MapOptions(
-          initialCenter: fallbackCenter,
+          initialCenter: me ?? pts.first,
           initialZoom: 16,
-          // When a zone exists, frame the whole polygon so it is always visible.
-          initialCameraFit: hasZone
-              ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(pts), padding: const EdgeInsets.all(60))
+          initialCameraFit: useFit
+              ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(fitPts), padding: const EdgeInsets.all(70))
               : null,
         ),
         children: [
@@ -65,13 +82,13 @@ class MapTab extends StatelessWidget {
               for (final p in pts)
                 CircleMarker(point: p, radius: 7, color: Colors.red, borderColor: Colors.white, borderStrokeWidth: 2),
             ]),
-          if (hasGps)
+          if (me != null)
             MarkerLayer(markers: [
-              Marker(point: LatLng(currentLat, currentLng), child: const Icon(Icons.my_location, color: Colors.blue, size: 30)),
+              Marker(point: me, child: const Icon(Icons.my_location, color: Colors.blue, size: 30)),
             ]),
         ],
       ),
-      // Small legend so it's obvious what the red area means.
+      // Legend.
       Positioned(
         left: 12,
         top: 12,
@@ -85,6 +102,21 @@ class MapTab extends StatelessWidget {
           ]),
         ),
       ),
+      // Inside / outside status badge.
+      if (hasZone && me != null)
+        Positioned(
+          right: 12,
+          top: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: (amInside ? Colors.red : Colors.green).withOpacity(0.85), borderRadius: BorderRadius.circular(20)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(amInside ? Icons.warning_amber_rounded : Icons.check_circle, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(amInside ? "INSIDE ZONE" : "OUTSIDE ZONE", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            ]),
+          ),
+        ),
     ]);
   }
 }
