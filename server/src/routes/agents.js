@@ -27,18 +27,48 @@ router.post("/register", requireApiKey, async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing required fields", message: "Missing required fields" });
     }
 
-    // Upsert keyed on device_id (which has a UNIQUE constraint).
+    // ── SECURITY: a device is permanently bound to its first registered owner ──
+    // If this device_id already exists, only the SAME identity (same emp_id +
+    // same name) may re-register (e.g. an app reinstall). A different identity
+    // is rejected — this prevents someone re-claiming a lost/stolen device under
+    // a new name. An admin must delete the device first to re-assign it.
+    const existing = await pool.query(
+      "SELECT emp_id, emp_name FROM public.agents WHERE device_id = $1",
+      [device_id]
+    );
+    if (existing.rows.length > 0) {
+      const cur = existing.rows[0];
+      const sameIdentity =
+        String(cur.emp_id).trim() === String(emp_id).trim() &&
+        String(cur.emp_name || "").trim().toLowerCase() === String(emp_name).trim().toLowerCase();
+      if (!sameIdentity) {
+        console.warn(`[AGENTS] Blocked re-registration of device ${device_id}: already bound to ${cur.emp_id}, attempted by ${emp_id}`);
+        return res.status(409).json({
+          success: false,
+          error: "Device already registered",
+          message: "This device is already registered to another employee. Contact your administrator.",
+        });
+      }
+      // Same person re-registering (e.g. reinstall): refresh metadata, keep the binding.
+      const upd = await pool.query(
+        `UPDATE public.agents SET
+           device_model    = $2,
+           android_version = $3,
+           sdk_int         = $4,
+           last_pulse      = $5
+         WHERE device_id = $1
+         RETURNING *`,
+        [device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at]
+      );
+      return res.status(201).json({ success: true, agent: upd.rows[0] });
+    }
+
+    // New device → insert. (emp_id is UNIQUE, so a duplicate emp_id on a
+    // different device is rejected by the catch below.)
     const result = await pool.query(
       `INSERT INTO public.agents
          (emp_name, emp_id, device_id, device_model, android_version, sdk_int, registered_at, last_pulse)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-       ON CONFLICT (device_id) DO UPDATE SET
-         emp_name        = EXCLUDED.emp_name,
-         emp_id          = EXCLUDED.emp_id,
-         device_model    = EXCLUDED.device_model,
-         android_version = EXCLUDED.android_version,
-         sdk_int         = EXCLUDED.sdk_int,
-         last_pulse      = EXCLUDED.last_pulse
        RETURNING *`,
       [emp_name, emp_id, device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at]
     );
@@ -46,6 +76,14 @@ router.post("/register", requireApiKey, async (req, res) => {
     // APK expects HTTP 201 on a successful registration.
     res.status(201).json({ success: true, agent: result.rows[0] });
   } catch (err) {
+    // Unique-violation (e.g. emp_id already used by another device) → 409.
+    if (err.code === "23505") {
+      return res.status(409).json({
+        success: false,
+        error: "Already registered",
+        message: "This employee ID or device is already registered. Contact your administrator.",
+      });
+    }
     console.error("[AGENTS] Register error:", err.message);
     res.status(500).json({ success: false, error: "Server error", message: err.message });
   }
