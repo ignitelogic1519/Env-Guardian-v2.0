@@ -9,6 +9,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
 import '../../cloud_sync.dart';
 import '../../core/platform.dart';
+import '../../core/theme/glass.dart';
 import '../command_center/command_center_screen.dart';
 
 /// First-run screen ("Sentinel Initiation"): collects identity, walks the user
@@ -45,7 +46,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     bool canSeal = _nOk && _fOk && _bOk && _oOk && _cOk && _aOk && _nameCtrl.text.trim().isNotEmpty && _empIdCtrl.text.trim().isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text("Sentinel Initiation"), centerTitle: true),
-      body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(30), child: Column(children: [
+      body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: FadeInUp(child: GlassCard(padding: const EdgeInsets.all(24), child: Column(children: [
         const Icon(Icons.security, size: 80, color: Colors.blueAccent), const SizedBox(height: 30),
         TextField(controller: _nameCtrl, decoration: InputDecoration(labelText: "Employee Name", prefixIcon: const Icon(Icons.person), filled: true, fillColor: Colors.grey[900], border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), const SizedBox(height: 15),
         TextField(controller: _empIdCtrl, decoration: InputDecoration(labelText: "Employee ID", prefixIcon: const Icon(Icons.badge), filled: true, fillColor: Colors.grey[900], border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), const SizedBox(height: 30),
@@ -61,7 +62,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
             else { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("SERVER REJECTED: ${json.decode(response.body)['message']}"), backgroundColor: Colors.red)); }
           } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("FATAL: Could not connect to Server."), backgroundColor: Colors.red)); }
         }, child: const Text("SEAL DEVICE & REGISTER", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))
-      ]))),
+      ]))))),
     );
   }
   Widget _permTile(String t, bool ok, VoidCallback tap) => ListTile(title: Text(t), trailing: Icon(ok ? Icons.check_circle : Icons.circle_outlined, color: ok ? Colors.green : Colors.red), onTap: ok ? null : tap);

@@ -54,6 +54,7 @@ dependencies:
   device_info_plus: ^13.1.0
   http: ^1.6.0
   crypto: ^3.0.7
+  google_fonts: ^6.2.1
   
 
 dev_dependencies:

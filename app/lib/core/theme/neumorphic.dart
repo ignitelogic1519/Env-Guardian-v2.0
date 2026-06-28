@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Neumorphic ("soft UI") design tokens and reusable widgets for Env Guardian.
 ///
@@ -106,21 +107,26 @@ class _NeuButtonState extends State<NeuButton> {
 
 /// The shared dark-neumorphic theme.
 ThemeData buildNeuTheme() {
-  return ThemeData.dark().copyWith(
-    scaffoldBackgroundColor: NeuColors.base,
+  final base = ThemeData.dark();
+  return base.copyWith(
+    // Transparent so the animated AuroraBackground shows through everywhere.
+    scaffoldBackgroundColor: Colors.transparent,
     primaryColor: NeuColors.accent,
     colorScheme: const ColorScheme.dark(
       primary: NeuColors.accent,
       surface: NeuColors.surface,
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: NeuColors.base,
+      backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
     ),
-    textTheme: ThemeData.dark().textTheme.apply(
-          bodyColor: NeuColors.textPrimary,
-          displayColor: NeuColors.textPrimary,
+    // Modern type: Outfit for headings/large text, Inter for body.
+    textTheme: GoogleFonts.interTextTheme(base.textTheme)
+        .apply(bodyColor: NeuColors.textPrimary, displayColor: NeuColors.textPrimary)
+        .copyWith(
+          headlineSmall: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: NeuColors.textPrimary),
+          titleLarge: GoogleFonts.outfit(fontWeight: FontWeight.w600, color: NeuColors.textPrimary),
         ),
   );
 }
