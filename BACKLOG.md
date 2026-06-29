@@ -9,17 +9,42 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 > not tamper-proof.
 
 ## ✅ Already shipped (for reference)
+
+### Foundation / infra
+- Monorepo set up (`app/` + `server/`), server hosted on Render, database on Neon
+- App connected to the server (URL + API key), HTTPS enforced (cleartext disabled)
+- Modular, feature-first app code structure (`core/` + `features/`)
+- Backend: idempotent auto-migrating schema; API-key + JWT auth; routes for
+  register / heartbeat / qr-verify / agent-status / settings / app-usage / policies
+
+### Features
 - Android version + SDK level reported to the database
 - Zone timer (in-app live clock + notification) for time-in-zone
-- Per-app daily time limits (server policy + `feature_flags` key + native UsageStats enforcement)
-- Neumorphic UI theme + Usage Access affordance
-- Modular, feature-first code structure (`core/` + `features/`)
-- Map page shows the restricted zone (red boundary + corner points + inside/outside badge, auto-fit)
-- Fixed settings sync (API key) so the geofence actually loads
-- Security: device bound to first owner; re-registration under a different identity blocked
-- Zone QR code generation
+- Per-app daily time limits (server `app_policies` + `feature_flags` key + native
+  UsageStats enforcement + usage reported to server)
+- Map page shows the restricted zone (red boundary + corner points + INSIDE/OUTSIDE
+  badge, auto-fits to show zone + device)
+- Per-app usage measurement via native UsageStatsManager (+ Usage Access affordance)
+- Security: device **bound to first owner**; re-registration under a different
+  identity blocked (anti-theft, HTTP 409)
+- Zone QR code generation (image produced from the `qr_secret`)
+
+### Bug fixes
+- Fixed settings sync (missing API-key header) so the geofence / global whitelist /
+  admin password / QR secret actually load on the device
+
+### UI
+- **Neumorphism + glassmorphism** look: animated aurora gradient background,
+  frosted-glass panels, modern fonts (Inter + Outfit), entrance/transition animations
+
+### Docs
+- `README.md` (detailed feature reference), `ADMIN_DB_GUIDE.md` (DB-driven admin
+  SQL cookbook), `TEST_CASES.md` (QA plan + server smoke tests), this `BACKLOG.md`
 
 ## 🔜 Planned / not yet built
+
+> Status of the original A–I list: **none of A, B, C, E, F, G, H, I have been built
+> yet.** D was reworked (admin is DB-driven now; web dashboard deferred).
 
 ### A. Pre-scan "clean state" gate  *(on hold — pending decisions)*
 Before the QR scan (in-zone), block the scanner if non-whitelisted apps are
