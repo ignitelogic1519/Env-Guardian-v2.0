@@ -45,11 +45,14 @@ screen to the foreground (and ensure the service is running even if killed).
 - Wake-if-killed: Android **Geofencing API** (OS triggers app on geofence enter/exit)
 - Caveats: OEM battery killers can delay/kill; mitigate w/ battery-opt exemption + boot receiver
 
-### D. Admin dashboard (web)  *(planned)*
-Point-and-click admin console instead of raw SQL:
-- Set/draw geofence, manage whitelist, set per-app time limits, toggle feature keys
-- View agents (live status, android version, usage), lock/unlock, delete device
-- Display the current zone QR (server already has `/api/qr-current`)
+### D. Admin configuration — DB-driven for now  *(web dashboard deferred)*
+Decision: **no web dashboard yet.** All admin config is done directly in the
+database (Neon SQL) — see **`ADMIN_DB_GUIDE.md`** for copy-paste commands:
+geofence, global + per-device whitelist, per-app time limits, feature keys,
+lock/unlock, QR/password, delete device. No code change needed — the server +
+app already read and sync these values.
+- Future (optional): a web dashboard that simply wraps these same DB operations
+  in a UI, and displays the zone QR (server already has `/api/qr-current`).
 
 ### E. OEM background-reliability hardening  *(planned)*
 Per-OEM onboarding deep-links to keep the service alive on aggressive skins:
