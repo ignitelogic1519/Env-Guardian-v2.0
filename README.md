@@ -53,6 +53,9 @@ env-guardian-v2.0/
 - A foreground service runs a **10-second loop** independent of the UI: refreshes
   location, compliance, server sync, lock state, and the persistent notification.
 - Auto-starts on boot; survives the app being closed.
+- **OEM keep-alive helper:** a compliance tile opens the manufacturer's Auto-start
+  screen (MIUI/ColorOS/Funtouch/OneUI/EMUI/OnePlus) so aggressive skins don't kill
+  the monitor (battery-optimization exemption is requested in the Battery step).
 
 ### 4. Geofencing / restricted-zone detection
 - The zone is a **polygon** stored server-side; the app does point-in-polygon
@@ -128,7 +131,7 @@ Tracked in **[`BACKLOG.md`](BACKLOG.md)**. Summary:
 | B | VPN per-app network control | Cut internet to non-whitelisted apps while in-zone |
 | C | Auto-start on zone entry | App wakes/foregrounds itself when entering the zone |
 | D | Admin dashboard (web) | *Deferred* — admin is DB-driven for now (see ADMIN_DB_GUIDE) |
-| E | OEM background reliability | Guide users to enable autostart / disable battery-kill |
+| E | OEM background reliability | *In progress* — Auto-start helper shipped; watchdog to do |
 | F | Security hardening | Per-device tokens instead of a shared in-APK API key |
 | G | Rotating QR | Time-based/signed QR so a photographed code can't be reused |
 | H | Production readiness | Real app id + distribution plan |

@@ -2,8 +2,11 @@ package com.example.env_guardian
 
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
@@ -57,6 +60,13 @@ class MainActivity : FlutterActivity() {
                 "getTodayUsage" -> {
                     result.success(getTodayUsage())
                 }
+                // --- OEM BACKGROUND RELIABILITY (feature E) ---
+                // Opens the manufacturer's Auto-start / background-allow screen so the
+                // user can keep the monitor alive on aggressive OEM skins (MIUI, ColorOS,
+                // FuntouchOS, OneUI, EMUI…). Falls back to the app's details page.
+                "openAutoStartSettings" -> {
+                    result.success(openAutoStartSettings())
+                }
                 else -> result.notImplemented()
             }
         }
@@ -96,6 +106,44 @@ class MainActivity : FlutterActivity() {
                 appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName)
             }
             mode == AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // Opens the OEM "auto-start / background allow" settings page. There is no
+    // public API for this, so we try known per-manufacturer activities in turn and
+    // fall back to this app's details page if none resolve.
+    private fun openAutoStartSettings(): Boolean {
+        val candidates = listOf(
+            ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"),
+            ComponentName("com.letv.android.letvsafe", "com.letv.android.letvsafe.AutobootManageActivity"),
+            ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"),
+            ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity"),
+            ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"),
+            ComponentName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity"),
+            ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"),
+            ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity"),
+            ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"),
+            ComponentName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity"),
+            ComponentName("com.oneplus.security", "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity")
+        )
+        for (cn in candidates) {
+            try {
+                val intent = Intent().setComponent(cn).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) != null) {
+                    startActivity(intent)
+                    return true
+                }
+            } catch (e: Exception) { /* try next */ }
+        }
+        // Fallback: this app's details page (battery / autostart toggles live nearby).
+        return try {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            true
         } catch (e: Exception) {
             false
         }

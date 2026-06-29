@@ -43,8 +43,13 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 
 ## 🔜 Planned / not yet built
 
-> Status of the original A–I list: **none of A, B, C, E, F, G, H, I have been built
-> yet.** D was reworked (admin is DB-driven now; web dashboard deferred).
+> **Rollout in progress** (one verified commit at a time, safest-first; the
+> codebase can't be compiled in the build sandbox, so each item must be built +
+> tested on a device after it lands). Current status:
+> - **E** — started ✅ (OEM Auto-start helper shipped; watchdog still to do)
+> - **D** — reworked → DB-driven admin (web dashboard deferred)
+> - **A, B, C, F, G, H, I** — specced below, not yet built
+> Order planned: **E → C → G → A → B → F → H**, with I/polish folded in.
 
 ### A. Pre-scan "clean state" gate  *(on hold — pending decisions)*
 Before the QR scan (in-zone), block the scanner if non-whitelisted apps are
@@ -79,10 +84,13 @@ app already read and sync these values.
 - Future (optional): a web dashboard that simply wraps these same DB operations
   in a UI, and displays the zone QR (server already has `/api/qr-current`).
 
-### E. OEM background-reliability hardening  *(planned)*
-Per-OEM onboarding deep-links to keep the service alive on aggressive skins:
-- Autostart + battery whitelist for Xiaomi/MIUI, Oppo/Realme/ColorOS, Vivo, Samsung
-- Watchdog / restart strategy
+### E. OEM background-reliability hardening  *(in progress)*
+Per-OEM onboarding deep-links to keep the service alive on aggressive skins.
+- ✅ **Auto-start helper shipped** — native `openAutoStartSettings` tries known
+  MIUI/ColorOS/Funtouch/OneUI/EMUI/OnePlus activities (falls back to app details);
+  surfaced as an "Auto-start / keep alive (OEM)" tile in the compliance panel.
+  Battery-optimization exemption is already requested via the existing Battery step.
+- ⬜ To do: a watchdog / restart strategy and clearer per-OEM instructions.
 
 ### F. Security hardening  *(planned)*
 - Replace the hardcoded in-APK API key with **per-device tokens** issued at registration
