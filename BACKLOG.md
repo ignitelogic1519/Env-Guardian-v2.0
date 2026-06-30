@@ -65,13 +65,18 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   apps that post a notification (i.e. ones actually doing work) + the blocker
   still kicks anything that surfaces.
 
-### B. VPN-based per-app network control  *(planned)*
-Local `VpnService` (no root) that, on **zone entry**, auto-enables and **blocks
-non-whitelisted apps' internet** (e.g. YouTube), then disables on exit.
-- One-time VPN consent at setup; auto start/stop after that
-- Tamper detection (`onRevoke`) → feed into compliance / auto-lock / admin alert
-- Optional onboarding step: user enables "Always-on VPN + block w/o VPN"
-- Caveats: one VPN at a time; user can disable on BYOD (detectable); status-bar icon
+### B. VPN-based per-app network control  *(shipped — experimental)*
+- ✅ Native `GuardianVpnService` (no root): a black-hole VPN that routes all
+  traffic and drops it, while **whitelisted apps + self bypass** (keep internet)
+  → non-whitelisted apps lose internet while active.
+- ✅ MainActivity: prepareVpn (one-time consent) / startVpn(whitelist) / stopVpn /
+  isVpnRunning; manifest registers the VpnService.
+- ✅ App: "Network Guard" compliance tile enables it; `_sync` **starts the VPN on
+  zone entry and stops it on exit** (whitelist passed through). `onRevoke` writes a
+  `vpn_revoked` tamper flag.
+- ⚠️ Must be **tested on a real device**. Caveats: one VPN at a time; user can
+  disable it on BYOD (tamper flag set); status-bar key icon; auto-start works while
+  the app is foreground (it's brought forward by feature C on zone entry).
 
 ### C. Auto-start / auto-foreground on zone entry  *(in progress)*
 - ✅ **Shipped:** on NEW zone entry (and not yet verified/locked) the background

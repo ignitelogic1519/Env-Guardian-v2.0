@@ -23,6 +23,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool _insideGeofence = false, _isPhysicallyVerified = false, _enforcerAlive = false, _isInitializing = true, _autoLock = false, _adminLock = false;
   bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true, _usageOk = false;
   bool _notifAccessOk = false; List<String> _runningOffenders = []; // feature A: pre-scan gate
+  bool _vpnEnabled = false; // feature B: network guard
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
 
@@ -56,6 +57,13 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Future<void> _reqUsage() async { try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _sync(); }
   Future<void> _reqAutostart() async { try { await platformBlocker.invokeMethod('openAutoStartSettings'); } catch (_) {} }
   Future<void> _reqNotifAccess() async { try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _refreshRunning(); }
+  // Feature B: turn on the Network Guard — triggers the one-time VPN consent.
+  Future<void> _reqVpn() async {
+    try { await platformBlocker.invokeMethod('prepareVpn'); } catch (_) {}
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('vpn_enabled', true);
+    if (mounted) setState(() => _vpnEnabled = true);
+  }
 
   // Feature A: figure out which non-whitelisted apps are currently running in the
   // background (apps with an active notification), so the QR scan can be gated.
@@ -119,7 +127,21 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     if (aL || adL || !comp) merged.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
-    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _verifiedSince = p.getInt('verified_since') ?? 0; });
+    // Feature B: Network Guard — while in-zone, cut non-whitelisted apps' internet
+    // (whitelisted apps bypass the tunnel); restore on exit. Requires VPN consent.
+    final bool inZoneNow = p.getBool('in_restricted_zone') ?? false;
+    if (p.getBool('vpn_enabled') ?? false) {
+      try {
+        final bool vpnRunning = (await platformBlocker.invokeMethod('isVpnRunning')) == true;
+        if (inZoneNow && !vpnRunning) {
+          await platformBlocker.invokeMethod('startVpn', {"whitelist": merged.toList()});
+        } else if (!inZoneNow && vpnRunning) {
+          await platformBlocker.invokeMethod('stopVpn');
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _verifiedSince = p.getInt('verified_since') ?? 0; });
     _refreshRunning();
   }
 
@@ -149,7 +171,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Widget _buildStatusTab() {
     if (_isInitializing) return const Center(child: CircularProgressIndicator());
     if (_adminLock) return _buildFrozenScreen(true); if (_autoLock) return _buildFrozenScreen(false);
-    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage), _shieldTile("Auto-start / keep alive (OEM)", false, _reqAutostart), _shieldTile("Notification Access (app-close gate)", _notifAccessOk, _reqNotifAccess)]))])));
+    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage), _shieldTile("Auto-start / keep alive (OEM)", false, _reqAutostart), _shieldTile("Notification Access (app-close gate)", _notifAccessOk, _reqNotifAccess), _shieldTile("Network Guard (block apps' internet)", _vpnEnabled, _reqVpn)]))])));
 
     if (!_insideGeofence) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shield, size: 100, color: Colors.greenAccent), Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)), Text("Move to Restricted Zone to authorize.")]));
 

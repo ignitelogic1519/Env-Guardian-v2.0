@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.VpnService
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
@@ -78,6 +79,31 @@ class MainActivity : FlutterActivity() {
                 }
                 "getActiveNotificationPackages" -> {
                     result.success(GuardianNotifListener.snapshot())
+                }
+                // --- NETWORK GUARD VPN (feature B) ---
+                "prepareVpn" -> {
+                    val intent = VpnService.prepare(this)
+                    if (intent == null) {
+                        result.success(true) // consent already granted
+                    } else {
+                        startActivityForResult(intent, 9911) // shows the one-time consent dialog
+                        result.success(false)
+                    }
+                }
+                "startVpn" -> {
+                    val wl = call.argument<List<String>>("whitelist") ?: listOf()
+                    val i = Intent(this, GuardianVpnService::class.java)
+                        .setAction(GuardianVpnService.ACTION_START)
+                        .putStringArrayListExtra(GuardianVpnService.EXTRA_WHITELIST, ArrayList(wl))
+                    startService(i)
+                    result.success(true)
+                }
+                "stopVpn" -> {
+                    startService(Intent(this, GuardianVpnService::class.java).setAction(GuardianVpnService.ACTION_STOP))
+                    result.success(true)
+                }
+                "isVpnRunning" -> {
+                    result.success(GuardianVpnService.running)
                 }
                 else -> result.notImplemented()
             }
