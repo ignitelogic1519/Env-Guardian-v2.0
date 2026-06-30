@@ -147,10 +147,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     return Column(children: [const Padding(padding: EdgeInsets.all(20), child: Text("SCAN TO AUTHENTICATE", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.greenAccent))), Expanded(child: Container(margin: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.greenAccent, width: 4), borderRadius: BorderRadius.circular(20)), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: MobileScanner(onDetect: (cap) async {
       for (final b in cap.barcodes) {
         if (b.rawValue == null) continue;
-        final p = await SharedPreferences.getInstance();
-        String expectedSecret = p.getString('qr_secret') ?? 'ENV_GUARDIAN_SECURE_ZONE';
-
-        if (b.rawValue == expectedSecret) {
+        // Validates against the static secret OR the rotating (TOTP) code per qr_mode.
+        if (await CloudSync.validateScannedQr(b.rawValue!)) {
+          final p = await SharedPreferences.getInstance();
           final int nowMs = DateTime.now().millisecondsSinceEpoch;
           await p.setBool('is_physically_verified', true);
           await p.setInt('verified_since', nowMs);

@@ -87,6 +87,7 @@ const STATEMENTS = [
      admin_password   varchar(100) NOT NULL,
      geofence_polygon jsonb NOT NULL,
      qr_secret        varchar(255) NOT NULL,
+     qr_mode          varchar(10) DEFAULT 'static',
      updated_at       bigint,
      whitelisted_apps jsonb DEFAULT '[]'::jsonb
    )`,
@@ -108,6 +109,9 @@ const STATEMENTS = [
   // Per-user "special key": a JSON object of feature toggles the admin controls,
   // e.g. {"app_time_limits": true}. Lets an admin unlock special behaviour per user.
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS feature_flags jsonb DEFAULT '{}'::jsonb`,
+  // Per-device auth token (feature F) + QR rotation mode (feature G).
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS device_token text`,
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS qr_mode varchar(10) DEFAULT 'static'`,
   // users table backfills (in case an older/partial users table exists)
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS org_name varchar(100) DEFAULT 'Env Guardian'`,
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role varchar(20) DEFAULT 'admin'`,

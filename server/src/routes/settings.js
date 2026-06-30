@@ -1,18 +1,38 @@
 const router = require("express").Router();
+const crypto = require("crypto");
 const pool = require("../db/pool");
 const { requireAuth } = require("../middleware/auth");
 
+// Rotating-QR (feature G) helper. When qr_mode = 'totp', the valid QR value is a
+// time-based code derived from qr_secret (30s window) instead of the static
+// string. Server and app compute it identically. Default mode is 'static'.
+const QR_PERIOD_SEC = 30;
+function qrCodeForStep(secret, step) {
+  return crypto.createHmac("sha256", String(secret)).update(String(step)).digest("hex").slice(0, 12).toUpperCase();
+}
+function currentQrValue(secret, mode) {
+  if (mode !== "totp") return secret;
+  const step = Math.floor(Date.now() / 1000 / QR_PERIOD_SEC);
+  return qrCodeForStep(secret, step);
+}
+
 // GET /api/qr-current
-// Returns current QR secret for dashboard QR display
+// Returns the QR value to display right now (rotates when qr_mode = 'totp').
 router.get("/qr-current", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT qr_secret FROM public.system_settings WHERE id = 1"
+      "SELECT qr_secret, qr_mode FROM public.system_settings WHERE id = 1"
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "System settings not found" });
     }
-    res.json({ success: true, qr_string: result.rows[0].qr_secret });
+    const { qr_secret, qr_mode } = result.rows[0];
+    res.json({
+      success: true,
+      qr_string: currentQrValue(qr_secret, qr_mode),
+      mode: qr_mode || "static",
+      period: QR_PERIOD_SEC,
+    });
   } catch (err) {
     console.error("[SETTINGS] QR fetch error:", err.message);
     res.status(500).json({ success: false, error: "Server error" });
@@ -25,7 +45,7 @@ router.get("/settings", requireAuth, async (req, res) => {
   try {
     // Includes admin_password + qr_secret so the APK can sync them on startup.
     const result = await pool.query(
-      "SELECT id, admin_password, geofence_polygon, whitelisted_apps, qr_secret, updated_at FROM public.system_settings WHERE id = 1"
+      "SELECT id, admin_password, geofence_polygon, whitelisted_apps, qr_secret, qr_mode, updated_at FROM public.system_settings WHERE id = 1"
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Settings not found" });

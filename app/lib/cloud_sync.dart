@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,10 +36,32 @@ class CloudSync {
         await p.setStringList('global_whitelist', globalWhitelist); 
 
         await p.setString('qr_secret', settings['qr_secret'] ?? 'FoldedSteelSecret2026');
+        await p.setString('qr_mode', (settings['qr_mode'] ?? 'static').toString());
       }
     } catch (e) {
       // Offline fallback
     }
+  }
+
+  // Rotating-QR (feature G). When qr_mode == 'totp', a scanned value is valid if
+  // it matches the time-based code for the current 30s window (±1 for clock skew);
+  // otherwise it must equal the static qr_secret. Mirrors the server's algorithm.
+  static const int qrPeriodSec = 30;
+  static String _qrCodeForStep(String secret, int step) {
+    final mac = Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(step.toString()));
+    return mac.toString().substring(0, 12).toUpperCase();
+  }
+
+  static Future<bool> validateScannedQr(String scanned) async {
+    final p = await SharedPreferences.getInstance();
+    final secret = p.getString('qr_secret') ?? 'ENV_GUARDIAN_SECURE_ZONE';
+    final mode = p.getString('qr_mode') ?? 'static';
+    if (mode != 'totp') return scanned == secret;
+    final step = (DateTime.now().millisecondsSinceEpoch ~/ 1000) ~/ qrPeriodSec;
+    for (final s in [step, step - 1, step + 1]) {
+      if (scanned == _qrCodeForStep(secret, s)) return true;
+    }
+    return false;
   }
 
   static Future<String> getAdminPassword() async {

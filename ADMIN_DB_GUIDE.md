@@ -138,6 +138,11 @@ WHERE id = 1;
 UPDATE public.system_settings
 SET admin_password = 'NewStrongPassword', updated_at = (EXTRACT(EPOCH FROM now())*1000)::bigint
 WHERE id = 1;
+
+-- (Optional) Rotating QR: 'totp' = time-based code (needs a live display of
+-- /api/qr-current, e.g. a zone screen); 'static' = fixed printed QR (default).
+UPDATE public.system_settings SET qr_mode = 'totp'   WHERE id = 1;  -- enable rotation
+UPDATE public.system_settings SET qr_mode = 'static' WHERE id = 1;  -- back to static
 ```
 
 ---

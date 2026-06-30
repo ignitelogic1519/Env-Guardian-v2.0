@@ -97,9 +97,14 @@ Per-OEM onboarding deep-links to keep the service alive on aggressive skins.
 - Replace the hardcoded in-APK API key with **per-device tokens** issued at registration
 - Move secrets out of source (build-time config)
 
-### G. Dynamic / rotating QR  *(planned)*
-Replace the static QR string with a time-based (TOTP) or server-signed value so a
-photographed QR can't be reused.
+### G. Dynamic / rotating QR  *(shipped, opt-in)*
+- ✅ Time-based QR codes: when `system_settings.qr_mode = 'totp'`, the valid QR is
+  an HMAC-SHA256 code over a 30s window derived from `qr_secret` (server + app
+  compute it identically; app accepts ±1 window for clock skew). Default stays
+  `'static'`, so existing printed QRs keep working.
+- ⚠️ Needs a **live display** of `/api/qr-current` (it now returns the current
+  rotating value) — a printed paper QR can't rotate. Practical once a dashboard /
+  zone screen renders it. Enable via DB: `UPDATE system_settings SET qr_mode='totp'`.
 
 ### H. Production readiness  *(planned)*
 - Change application ID off `com.example.env_guardian`
