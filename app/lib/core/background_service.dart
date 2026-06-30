@@ -63,7 +63,7 @@ void onStart(ServiceInstance service) async {
     // THE IRON FILE FIX: Direct read to bypass Flutter's buggy cache
     bool enforcerAlive = false;
     try {
-      final file = File('/data/user/0/com.example.env_guardian/files/iron_pulse.txt');
+      final file = File('/data/user/0/com.envguardian.mdm/files/iron_pulse.txt');
       if (file.existsSync()) {
         final text = file.readAsStringSync();
         enforcerAlive = (DateTime.now().millisecondsSinceEpoch - (int.tryParse(text) ?? 0)) < 90000;

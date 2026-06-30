@@ -123,9 +123,15 @@ Per-OEM onboarding deep-links to keep the service alive on aggressive skins.
   rotating value) — a printed paper QR can't rotate. Practical once a dashboard /
   zone screen renders it. Enable via DB: `UPDATE system_settings SET qr_mode='totp'`.
 
-### H. Production readiness  *(planned)*
-- Change application ID off `com.example.env_guardian`
-- Distribution plan (direct APK / private channel, since accessibility+VPN are Play-policy sensitive)
+### H. Production readiness  *(partly shipped)*
+- ✅ **Application ID changed** to `com.envguardian.mdm` (Kotlin `namespace` kept as
+  `com.example.env_guardian` so channels/components/source don't move). Runtime
+  self-package references updated (blocker self-check now uses `packageName`;
+  Armory self-skip, iron_pulse path, and the running-apps self-filter use the new id).
+- ⬜ Distribution plan: ship as a **direct/private APK** (accessibility + VPN +
+  usage/notification access are Play-policy sensitive). MDM/enterprise channel
+  recommended over the public Play Store.
+- ⚠️ Verify on device: app installs under the new id and does not block itself in-zone.
 
 ### I. Polish / optional
 - Notification timer that ticks every second via native chronometer

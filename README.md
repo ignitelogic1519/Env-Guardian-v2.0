@@ -134,7 +134,7 @@ Tracked in **[`BACKLOG.md`](BACKLOG.md)**. Summary:
 | E | OEM background reliability | *In progress* — Auto-start helper shipped; watchdog to do |
 | F | Security hardening | Per-device tokens instead of a shared in-APK API key |
 | G | Rotating QR | Time-based/signed QR so a photographed code can't be reused |
-| H | Production readiness | Real app id + distribution plan |
+| H | Production readiness | *Partly done* — app id `com.envguardian.mdm`; distribution plan pending |
 | I | Polish | Chronometer notification, Samsung Knox mode, Wi-Fi enforcement, time-limit testing |
 
 ---

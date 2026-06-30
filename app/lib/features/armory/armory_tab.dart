@@ -27,7 +27,7 @@ class _ArmoryTabState extends State<ArmoryTab> {
     if (!_unlocked) return Padding(padding: const EdgeInsets.all(40), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.lock, size: 60), const Text("ZERO TRUST VAULT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: "Admin Vault Key")), const SizedBox(height: 20), ElevatedButton(onPressed: () async { if (_pass.text == await CloudSync.getAdminPassword()) setState(() => _unlocked = true); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Incorrect Key"), backgroundColor: Colors.red)); }, child: const Text("UNLOCK"))]));
 
     return ListView.builder(itemCount: _apps.length, itemBuilder: (c, i) {
-      final a = _apps[i]; if (a.packageName == "com.example.env_guardian") return const SizedBox.shrink();
+      final a = _apps[i]; if (a.packageName == "com.envguardian.mdm") return const SizedBox.shrink();
       bool isAllowed = _whitelist.contains(a.packageName);
 
       return ListTile(leading: a.icon != null ? Image.memory(a.icon!, width: 40) : const Icon(Icons.android), title: Text(a.name), subtitle: Text(isAllowed ? "VIP Allowed" : "Blocked by Zero Trust", style: TextStyle(color: isAllowed ? Colors.green : Colors.red, fontSize: 12)), trailing: Switch(value: isAllowed, activeColor: Colors.green, inactiveThumbColor: Colors.red, onChanged: (v) async {

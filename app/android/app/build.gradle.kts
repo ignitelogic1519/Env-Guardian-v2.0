@@ -23,7 +23,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.env_guardian"
+        // Published application id (Play-ready). Kept separate from the Kotlin
+        // `namespace` above so source packages / channel names don't have to move.
+        applicationId = "com.envguardian.mdm"
         
         // Setting the foundation firmly at API 21
         minSdk = flutter.minSdkVersion 

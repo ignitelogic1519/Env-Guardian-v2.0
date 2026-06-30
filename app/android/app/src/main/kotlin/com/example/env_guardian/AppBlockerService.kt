@@ -117,7 +117,7 @@ class AppBlockerService : AccessibilityService() {
     }
 
     private fun shouldBlock(pkg: String, whitelist: Set<String>): Boolean {
-        if (pkg == "com.example.env_guardian") return false
+        if (pkg == applicationContext.packageName) return false // never block ourselves
         if (isCoreSystemApp(pkg)) return false
         if (whitelist.contains(pkg)) return false
         return true

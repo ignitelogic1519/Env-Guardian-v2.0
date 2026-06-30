@@ -72,7 +72,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
       pkg.contains('systemui') || pkg.startsWith('com.google.android.gms') ||
       pkg.startsWith('com.samsung.android') || pkg.startsWith('com.miui') ||
       pkg.startsWith('com.coloros') || pkg.startsWith('com.oppo') || pkg.startsWith('com.vivo') ||
-      pkg.startsWith('com.heytap') || pkg == 'com.example.env_guardian';
+      pkg.startsWith('com.heytap') || pkg == 'com.envguardian.mdm';
 
   Future<void> _refreshRunning() async {
     bool ok = false; List<String> active = [];
