@@ -121,21 +121,27 @@ env-guardian-v2.0/
 
 ---
 
-## 🔜 Planned / not-yet-built features
+## Feature rollout status (A–I)
 
-Tracked in **[`BACKLOG.md`](BACKLOG.md)**. Summary:
+Tracked in **[`BACKLOG.md`](BACKLOG.md)**. All require a **device build + QA pass**
+(see [`QA_CHECKLIST.md`](QA_CHECKLIST.md)); the heavier native ones (A, B) are
+marked experimental until verified on real hardware.
 
-| ID | Feature | One-line |
-|----|---------|----------|
-| A | Pre-scan clean-state gate | Force closing non-whitelisted running apps before the QR scan |
-| B | VPN per-app network control | Cut internet to non-whitelisted apps while in-zone |
-| C | Auto-start on zone entry | App wakes/foregrounds itself when entering the zone |
-| D | Admin dashboard (web) | *Deferred* — admin is DB-driven for now (see ADMIN_DB_GUIDE) |
-| E | OEM background reliability | *In progress* — Auto-start helper shipped; watchdog to do |
-| F | Security hardening | Per-device tokens instead of a shared in-APK API key |
-| G | Rotating QR | Time-based/signed QR so a photographed code can't be reused |
-| H | Production readiness | *Partly done* — app id `com.envguardian.mdm`; distribution plan pending |
-| I | Polish | Chronometer notification, Samsung Knox mode, Wi-Fi enforcement, time-limit testing |
+| ID | Feature | Status |
+|----|---------|--------|
+| A | Pre-scan clean-state gate (close running apps before QR) | ✅ Shipped (Notification Access; soft gate) |
+| B | VPN per-app network control (block internet in-zone) | ✅ Shipped — **experimental, test on device** |
+| C | Auto-foreground on zone entry | ✅ Shipped (full-screen prompt; geofence-wake = future) |
+| D | Admin dashboard (web) | ⏸ Deferred — admin is DB-driven ([`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)) |
+| E | OEM background reliability | ✅ Auto-start helper shipped (watchdog = future) |
+| F | Per-device auth tokens | ✅ Shipped — issued now; enforce via `ENFORCE_DEVICE_TOKEN=true` |
+| G | Rotating (TOTP) QR | ✅ Shipped, opt-in (`qr_mode='totp'`; needs a live display) |
+| H | Production app id | ✅ `com.envguardian.mdm` (distribution = direct/private APK) |
+| I | Polish | ⬜ Chronometer notif, Samsung Knox, Wi-Fi enforcement (future) |
+
+> **New permissions introduced by this rollout** (granted from the compliance
+> panel): **Notification Access** (feature A), **VPN consent** (feature B), plus
+> the existing **Usage Access** and **Auto-start** helper (E).
 
 ---
 
@@ -166,4 +172,6 @@ whitelist apps, configure time limits, and lock/unlock devices.
 - **[`app/README.md`](app/README.md)** — app structure (feature-first layout)
 - **[`server/README.md`](server/README.md)** — backend overview
 - **[`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)** — administer via the database
-- **[`BACKLOG.md`](BACKLOG.md)** — planned features
+- **[`TEST_CASES.md`](TEST_CASES.md)** — granular QA cases + server smoke tests
+- **[`QA_CHECKLIST.md`](QA_CHECKLIST.md)** — end-to-end user-story integrity checklist
+- **[`BACKLOG.md`](BACKLOG.md)** — feature rollout status + future work
