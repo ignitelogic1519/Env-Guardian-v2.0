@@ -22,6 +22,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   int _tabIndex = 0; double _lat = 0, _lng = 0;
   bool _insideGeofence = false, _isPhysicallyVerified = false, _enforcerAlive = false, _isInitializing = true, _autoLock = false, _adminLock = false;
   bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true, _usageOk = false;
+  bool _notifAccessOk = false; List<String> _runningOffenders = []; // feature A: pre-scan gate
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
 
@@ -54,6 +55,28 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Future<void> _reqAccess() async { await platformBlocker.invokeMethod('openAccessibilitySettings'); _sync(); }
   Future<void> _reqUsage() async { try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _sync(); }
   Future<void> _reqAutostart() async { try { await platformBlocker.invokeMethod('openAutoStartSettings'); } catch (_) {} }
+  Future<void> _reqNotifAccess() async { try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _refreshRunning(); }
+
+  // Feature A: figure out which non-whitelisted apps are currently running in the
+  // background (apps with an active notification), so the QR scan can be gated.
+  bool _isSystemish(String pkg) =>
+      pkg.startsWith('com.android.') || pkg.startsWith('android') || pkg.contains('inputmethod') ||
+      pkg.contains('systemui') || pkg.startsWith('com.google.android.gms') ||
+      pkg.startsWith('com.samsung.android') || pkg.startsWith('com.miui') ||
+      pkg.startsWith('com.coloros') || pkg.startsWith('com.oppo') || pkg.startsWith('com.vivo') ||
+      pkg.startsWith('com.heytap') || pkg == 'com.example.env_guardian';
+
+  Future<void> _refreshRunning() async {
+    bool ok = false; List<String> active = [];
+    try { ok = await platformBlocker.invokeMethod('hasNotificationAccess'); } catch (_) {}
+    if (ok) {
+      try { final List r = await platformBlocker.invokeMethod('getActiveNotificationPackages'); active = r.map((e) => e.toString()).toList(); } catch (_) {}
+    }
+    final p = await SharedPreferences.getInstance();
+    final wl = {...(p.getStringList('global_whitelist') ?? []), ...(p.getStringList('custom_whitelist') ?? [])};
+    final offenders = active.where((pkg) => !wl.contains(pkg) && !_isSystemish(pkg)).toSet().toList()..sort();
+    if (mounted) setState(() { _notifAccessOk = ok; _runningOffenders = offenders; });
+  }
 
   Future<void> _sync() async {
     final p = await SharedPreferences.getInstance(); await p.reload();
@@ -97,6 +120,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
     if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _verifiedSince = p.getInt('verified_since') ?? 0; });
+    _refreshRunning();
   }
 
   Future<void> _unfreezeDevice() async {
@@ -125,7 +149,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Widget _buildStatusTab() {
     if (_isInitializing) return const Center(child: CircularProgressIndicator());
     if (_adminLock) return _buildFrozenScreen(true); if (_autoLock) return _buildFrozenScreen(false);
-    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage), _shieldTile("Auto-start / keep alive (OEM)", false, _reqAutostart)]))])));
+    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage), _shieldTile("Auto-start / keep alive (OEM)", false, _reqAutostart), _shieldTile("Notification Access (app-close gate)", _notifAccessOk, _reqNotifAccess)]))])));
 
     if (!_insideGeofence) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shield, size: 100, color: Colors.greenAccent), Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)), Text("Move to Restricted Zone to authorize.")]));
 
@@ -143,6 +167,9 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
         ]))),
       ]));
     }
+
+    // Feature A: gate the scanner until non-whitelisted background apps are closed.
+    if (_notifAccessOk && _runningOffenders.isNotEmpty) return _buildCloseAppsGate();
 
     return Column(children: [const Padding(padding: EdgeInsets.all(20), child: Text("SCAN TO AUTHENTICATE", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.greenAccent))), Expanded(child: Container(margin: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.greenAccent, width: 4), borderRadius: BorderRadius.circular(20)), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: MobileScanner(onDetect: (cap) async {
       for (final b in cap.barcodes) {
@@ -162,5 +189,18 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
   Widget _buildFrozenScreen(bool isAdmin) => Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.lock_person, size: 100, color: Colors.redAccent), Text(isAdmin ? "ADMIN LOCK" : "AUTO-LOCK", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.redAccent)), Text(isAdmin ? "Banishment Decree issued by Server." : "Time Anomaly Detected.", style: const TextStyle(color: Colors.white70)), const SizedBox(height: 40), if (!isAdmin) ...[TextField(controller: _unlockPassCtrl, obscureText: true, decoration: InputDecoration(labelText: "Admin Unfreeze Password", filled: true, fillColor: Colors.grey[900])), const SizedBox(height: 20), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 60)), icon: const Icon(Icons.key), label: const Text("UNFREEZE"), onPressed: _unfreezeDevice)] else const Icon(Icons.cloud_off, size: 50, color: Colors.white30), const SizedBox(height: 30), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800], foregroundColor: Colors.white), onPressed: () => platformBlocker.invokeMethod('openAccessibilitySettings'), child: const Text("Open Phone Settings"))])));
   Widget _shieldTile(String t, bool ok, VoidCallback tap) => ListTile(dense: true, title: Text(t, style: const TextStyle(color: Colors.white)), trailing: Icon(ok ? Icons.check_circle : Icons.open_in_new, color: ok ? Colors.green : Colors.orangeAccent), onTap: ok ? null : tap);
+
+  // Feature A: shown instead of the scanner while non-whitelisted apps are running.
+  Widget _buildCloseAppsGate() => Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: FadeInUp(child: GlassCard(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.do_not_disturb_on, size: 70, color: Colors.orangeAccent),
+        const SizedBox(height: 12),
+        const Text("CLOSE THESE APPS", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
+        const SizedBox(height: 6),
+        const Text("These apps are running in the background. Close them (swipe away from Recents), then re-check to unlock scanning.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(height: 16),
+        ..._runningOffenders.take(15).map((pkg) => ListTile(dense: true, leading: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20), title: Text(pkg, style: const TextStyle(color: Colors.white, fontSize: 13)))),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 48)), icon: const Icon(Icons.refresh), label: const Text("I'VE CLOSED THEM — RE-CHECK"), onPressed: _refreshRunning),
+      ]))));
   @override void dispose() { _t?.cancel(); _clock?.cancel(); _unlockPassCtrl.dispose(); super.dispose(); }
 }

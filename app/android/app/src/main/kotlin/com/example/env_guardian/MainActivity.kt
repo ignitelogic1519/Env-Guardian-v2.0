@@ -67,6 +67,18 @@ class MainActivity : FlutterActivity() {
                 "openAutoStartSettings" -> {
                     result.success(openAutoStartSettings())
                 }
+                // --- NOTIFICATION ACCESS (feature A: detect running background apps) ---
+                "hasNotificationAccess" -> {
+                    val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+                    result.success(flat.contains(packageName))
+                }
+                "openNotificationAccessSettings" -> {
+                    startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    result.success(true)
+                }
+                "getActiveNotificationPackages" -> {
+                    result.success(GuardianNotifListener.snapshot())
+                }
                 else -> result.notImplemented()
             }
         }

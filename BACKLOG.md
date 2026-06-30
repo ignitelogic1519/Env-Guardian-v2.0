@@ -51,13 +51,19 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 > - **A, B, C, F, G, H, I** — specced below, not yet built
 > Order planned: **E → C → G → A → B → F → H**, with I/polish folded in.
 
-### A. Pre-scan "clean state" gate  *(on hold — pending decisions)*
-Before the QR scan (in-zone), block the scanner if non-whitelisted apps are
-running; show the list + prompt to close them; whitelisted apps are exempt.
-- Detection: accessibility recent-foreground history + Usage Access (recent apps)
-- Optional: **Notification Access** to catch background-media apps (e.g. YouTube
-  Premium music) via their foreground-service/media notification
-- Android reality: can't list/kill true background apps → soft gate + blocker enforces
+### A. Pre-scan "clean state" gate  *(shipped — soft gate)*
+- ✅ Native `GuardianNotifListener` (NotificationListenerService) tracks apps with
+  active notifications = "running in background" (catches background-media like
+  YouTube Premium). MainActivity exposes hasNotificationAccess /
+  openNotificationAccessSettings / getActiveNotificationPackages.
+- ✅ App: a **"Notification Access"** compliance tile to grant it; before the QR
+  scanner, if any **non-whitelisted, non-system** app is running, the scanner is
+  replaced by a **"Close these apps"** screen (list + Re-check) until clear.
+- Behaviour: whitelisted + system apps are exempt; if access isn't granted the
+  gate fails open (scanner shown) — grant it to enforce.
+- Limit (Android reality): can't list/kill truly silent background apps; covers
+  apps that post a notification (i.e. ones actually doing work) + the blocker
+  still kicks anything that surfaces.
 
 ### B. VPN-based per-app network control  *(planned)*
 Local `VpnService` (no root) that, on **zone entry**, auto-enables and **blocks
