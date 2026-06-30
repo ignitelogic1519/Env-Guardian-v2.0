@@ -20,7 +20,10 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterL
 /// perimeter even when the UI is closed.
 Future<void> initializeGhost(bool isSealed) async {
   final service = FlutterBackgroundService();
-  await flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(const AndroidNotificationChannel('guardian_ghost', 'Sentinel Heartbeat', description: 'Active Perimeter Monitoring', importance: Importance.low));
+  final androidNotif = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+  await androidNotif?.createNotificationChannel(const AndroidNotificationChannel('guardian_ghost', 'Sentinel Heartbeat', description: 'Active Perimeter Monitoring', importance: Importance.low));
+  // High-importance channel for alerts + the "entered the zone" full-screen prompt.
+  await androidNotif?.createNotificationChannel(const AndroidNotificationChannel('guardian_alerts', 'Compliance Alerts', description: 'Zone entry and enforcement alerts', importance: Importance.max));
   await service.configure(
     androidConfiguration: AndroidConfiguration(onStart: onStart, autoStart: isSealed, isForegroundMode: true, notificationChannelId: 'guardian_ghost', initialNotificationTitle: 'Env Guardian', initialNotificationContent: 'System Active', foregroundServiceNotificationId: 888),
     iosConfiguration: IosConfiguration(autoStart: false),
@@ -33,6 +36,7 @@ void onStart(ServiceInstance service) async {
   final prefs = await SharedPreferences.getInstance();
 
   bool lastAlertState = false;
+  bool lastInside = false; // tracks zone-entry transitions for the auto-foreground prompt
   String lastNotifState = "";
 
   if (service is AndroidServiceInstance) service.setAsForegroundService();
@@ -184,6 +188,23 @@ void onStart(ServiceInstance service) async {
     } else {
       if (lastAlertState) { flutterLocalNotificationsPlugin.cancel(999); lastAlertState = false; }
     }
+    // Feature C: when the device NEWLY enters the zone and isn't verified yet,
+    // pop a full-screen prompt that brings the app forward to authenticate.
+    if (insideGeofence && !lastInside && !isPhysicallyVerified && !isLocked) {
+      try {
+        await flutterLocalNotificationsPlugin.show(
+          1001,
+          "Restricted Zone Entered",
+          "Open Env Guardian and scan the QR to authenticate.",
+          const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, fullScreenIntent: true, icon: '@mipmap/ic_launcher')),
+        );
+      } catch (_) {}
+    }
+    if (!insideGeofence && lastInside) {
+      try { await flutterLocalNotificationsPlugin.cancel(1001); } catch (_) {}
+    }
+    lastInside = insideGeofence;
+
     service.invoke('update', {"lat": cLat, "lng": cLng, "inside": insideGeofence});
   });
 }

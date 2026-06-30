@@ -67,13 +67,14 @@ non-whitelisted apps' internet** (e.g. YouTube), then disables on exit.
 - Optional onboarding step: user enables "Always-on VPN + block w/o VPN"
 - Caveats: one VPN at a time; user can disable on BYOD (detectable); status-bar icon
 
-### C. Auto-start / auto-foreground on zone entry  *(planned — newest request)*
-When the user enters the zone, automatically bring the app's compliance/QR
-screen to the foreground (and ensure the service is running even if killed).
-- Foreground UI launch: overlay permission / full-screen-intent notification /
-  accessibility (mechanisms we already have)
-- Wake-if-killed: Android **Geofencing API** (OS triggers app on geofence enter/exit)
-- Caveats: OEM battery killers can delay/kill; mitigate w/ battery-opt exemption + boot receiver
+### C. Auto-start / auto-foreground on zone entry  *(in progress)*
+- ✅ **Shipped:** on NEW zone entry (and not yet verified/locked) the background
+  loop fires a **full-screen-intent notification** that brings the app forward to
+  authenticate; it's cancelled on exit. New `USE_FULL_SCREEN_INTENT` permission +
+  a dedicated high-importance `guardian_alerts` channel.
+- ⬜ To do (future): wake-if-killed via the Android **Geofencing API** (OS triggers
+  the app on geofence transition). The always-on foreground service already keeps
+  the app alive in the common case.
 
 ### D. Admin configuration — DB-driven for now  *(web dashboard deferred)*
 Decision: **no web dashboard yet.** All admin config is done directly in the
