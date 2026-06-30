@@ -13,6 +13,18 @@ class CloudSync {
 
   static const String apiKey = "c6a725cf024ed9560e57a26d8b661700e10400f7c1ea1eaf";
 
+  // Feature F: device request headers = shared API key + this device's token
+  // (issued at registration). The server enforces the token when
+  // ENFORCE_DEVICE_TOKEN=true; until then it's accepted but not required.
+  static Future<Map<String, String>> _authHeaders({bool jsonBody = false}) async {
+    final p = await SharedPreferences.getInstance();
+    final h = <String, String>{"x-api-key": apiKey};
+    final t = p.getString('device_token');
+    if (t != null && t.isNotEmpty) h["x-device-token"] = t;
+    if (jsonBody) h["Content-Type"] = "application/json";
+    return h;
+  }
+
   static Future<void> syncSettings() async {
     final p = await SharedPreferences.getInstance();
     try {
@@ -78,7 +90,7 @@ class CloudSync {
 
   static Future<Map<String, dynamic>> fetchAgentData(String empId) async {
     try {
-      final response = await http.get(Uri.parse('$statusUrl/$empId'), headers: {"x-api-key": apiKey}).timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse('$statusUrl/$empId'), headers: await _authHeaders()).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
@@ -145,7 +157,7 @@ class CloudSync {
       final p = await SharedPreferences.getInstance();
       await http.post(
         Uri.parse(heartbeatUrl),
-        headers: {"Content-Type": "application/json", "x-api-key": apiKey},
+        headers: await _authHeaders(jsonBody: true),
         body: json.encode({
           "empId": empId, "lat": lat, "lng": lng, "inZone": inZone, "enforcerActive": enforcerActive,
           "timestamp": DateTime.now().millisecondsSinceEpoch, "installedApps": installedApps,

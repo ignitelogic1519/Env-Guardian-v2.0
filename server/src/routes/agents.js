@@ -1,7 +1,19 @@
 const router = require("express").Router();
+const crypto = require("crypto");
 const pool = require("../db/pool");
 const { requireApiKey, requireAuth } = require("../middleware/auth");
 const { enrichAgent } = require("../utils/agentMetrics");
+
+// Feature F: per-device auth token. Issued at registration. Enforcement is
+// OPT-IN via ENFORCE_DEVICE_TOKEN=true (so existing devices aren't locked out
+// before they've obtained a token). When enforced, a device request whose
+// agent has a token must present a matching x-device-token header.
+const newDeviceToken = () => crypto.randomBytes(24).toString("hex");
+function deviceTokenOk(req, agentRow) {
+  if (String(process.env.ENFORCE_DEVICE_TOKEN).toLowerCase() !== "true") return true;
+  if (!agentRow || !agentRow.device_token) return true; // no token yet → grace
+  return req.headers["x-device-token"] === agentRow.device_token;
+}
 
 // The Flutter APK and the React dashboard historically used slightly different
 // field names. These helpers accept either dialect so both clients integrate
@@ -33,7 +45,7 @@ router.post("/register", requireApiKey, async (req, res) => {
     // is rejected — this prevents someone re-claiming a lost/stolen device under
     // a new name. An admin must delete the device first to re-assign it.
     const existing = await pool.query(
-      "SELECT emp_id, emp_name FROM public.agents WHERE device_id = $1",
+      "SELECT emp_id, emp_name, device_token FROM public.agents WHERE device_id = $1",
       [device_id]
     );
     if (existing.rows.length > 0) {
@@ -49,28 +61,31 @@ router.post("/register", requireApiKey, async (req, res) => {
           message: "This device is already registered to another employee. Contact your administrator.",
         });
       }
-      // Same person re-registering (e.g. reinstall): refresh metadata, keep the binding.
+      // Same person re-registering (e.g. reinstall): refresh metadata, keep the
+      // binding, and keep the existing token (issue one if it never had one).
+      const token = cur.device_token || newDeviceToken();
       const upd = await pool.query(
         `UPDATE public.agents SET
            device_model    = $2,
            android_version = $3,
            sdk_int         = $4,
-           last_pulse      = $5
+           last_pulse      = $5,
+           device_token    = $6
          WHERE device_id = $1
          RETURNING *`,
-        [device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at]
+        [device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at, token]
       );
       return res.status(201).json({ success: true, agent: upd.rows[0] });
     }
 
-    // New device → insert. (emp_id is UNIQUE, so a duplicate emp_id on a
-    // different device is rejected by the catch below.)
+    // New device → insert with a fresh device token. (emp_id is UNIQUE, so a
+    // duplicate emp_id on a different device is rejected by the catch below.)
     const result = await pool.query(
       `INSERT INTO public.agents
-         (emp_name, emp_id, device_id, device_model, android_version, sdk_int, registered_at, last_pulse)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+         (emp_name, emp_id, device_id, device_model, android_version, sdk_int, registered_at, last_pulse, device_token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)
        RETURNING *`,
-      [emp_name, emp_id, device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at]
+      [emp_name, emp_id, device_id, device_model, android_version ?? null, sdk_int ?? null, registered_at, newDeviceToken()]
     );
 
     // APK expects HTTP 201 on a successful registration.
@@ -128,7 +143,7 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
          sdk_int           = COALESCE($11, sdk_int),
          last_pulse        = $9
        WHERE ${matchCol} = $1
-       RETURNING id, emp_name, emp_id, device_id, last_pulse, admin_lock, auto_lock`,
+       RETURNING id, emp_name, emp_id, device_id, last_pulse, admin_lock, auto_lock, device_token`,
       [
         matchVal,
         current_lat ?? null,
@@ -149,6 +164,9 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
     }
 
     const agent = result.rows[0];
+    if (!deviceTokenOk(req, agent)) {
+      return res.status(403).json({ success: false, error: "Invalid device token" });
+    }
     res.json({
       success: true,
       last_pulse: now,
@@ -200,7 +218,7 @@ router.post("/qr-verify", requireApiKey, async (req, res) => {
 router.get("/agent-status/:empId", requireApiKey, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT admin_lock, auto_lock, custom_whitelist, feature_flags
+      `SELECT admin_lock, auto_lock, custom_whitelist, feature_flags, device_token
        FROM public.agents WHERE emp_id = $1`,
       [req.params.empId]
     );
@@ -208,6 +226,9 @@ router.get("/agent-status/:empId", requireApiKey, async (req, res) => {
       return res.status(404).json({ success: false, error: "Agent not found" });
     }
     const row = result.rows[0];
+    if (!deviceTokenOk(req, row)) {
+      return res.status(403).json({ success: false, error: "Invalid device token" });
+    }
 
     // Per-app time-limit policy for this employee (only the enabled rows).
     const pol = await pool.query(

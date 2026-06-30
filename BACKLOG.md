@@ -104,9 +104,15 @@ Per-OEM onboarding deep-links to keep the service alive on aggressive skins.
   Battery-optimization exemption is already requested via the existing Battery step.
 - ⬜ To do: a watchdog / restart strategy and clearer per-OEM instructions.
 
-### F. Security hardening  *(planned)*
-- Replace the hardcoded in-APK API key with **per-device tokens** issued at registration
-- Move secrets out of source (build-time config)
+### F. Security hardening  *(shipped — staged)*
+- ✅ **Per-device tokens**: a random `device_token` is issued at registration
+  (`agents.device_token`), returned to the app, stored, and sent as `x-device-token`
+  on heartbeat + agent-status.
+- ✅ **Opt-in enforcement**: set server env `ENFORCE_DEVICE_TOKEN=true` to require a
+  matching token (devices without one yet get a grace pass, so nothing breaks).
+  Roll out: deploy → let devices re-register/obtain tokens → then flip enforcement on.
+- ⬜ Remaining: move the shared API key out of the APK source (build-time
+  `--dart-define`); rotate the shared key once per-device tokens are enforced fleet-wide.
 
 ### G. Dynamic / rotating QR  *(shipped, opt-in)*
 - ✅ Time-based QR codes: when `system_settings.qr_mode = 'totp'`, the valid QR is
