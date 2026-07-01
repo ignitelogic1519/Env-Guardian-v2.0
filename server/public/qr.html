@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Env Guardian — Zone QR</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; gap: 18px; font-family: system-ui, sans-serif;
+           background: radial-gradient(1200px 600px at 50% -10%, #16224b, #0e1230 60%); color: #e6e9ef; }
+    h1 { font-weight: 700; margin: 8px 0 0; letter-spacing: .5px; }
+    .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15);
+            border-radius: 24px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    #qr { background: #fff; padding: 16px; border-radius: 16px; min-width: 320px; min-height: 320px;
+          display: flex; align-items: center; justify-content: center; }
+    .code { font-family: monospace; font-size: 14px; color: #8fd; word-break: break-all; max-width: 360px; text-align: center; }
+    .meta { font-size: 13px; color: #8a92a6; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    input { background: #10142e; color: #e6e9ef; border: 1px solid #33406b; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+    button { background: #5b8cff; color: #fff; border: 0; border-radius: 10px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+    .err { color: #ff7d7d; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>🛡 Env Guardian — Zone QR</h1>
+  <div class="controls">
+    <input id="key" type="password" placeholder="API key (x-api-key)" size="30" />
+    <button id="load">Show QR</button>
+  </div>
+  <div class="card">
+    <div id="qr">Enter the API key and click “Show QR”.</div>
+    <div id="code" class="code"></div>
+    <div id="meta" class="meta"></div>
+    <div id="err" class="err"></div>
+  </div>
+
+  <script>
+    // Served from the same origin as the API, so no CORS and relative fetch works.
+    var base = location.origin;
+    var keyEl = document.getElementById('key');
+    var qrEl = document.getElementById('qr');
+    var codeEl = document.getElementById('code');
+    var metaEl = document.getElementById('meta');
+    var errEl = document.getElementById('err');
+    var timer = null;
+
+    // Remember the key locally so you don't retype it.
+    keyEl.value = localStorage.getItem('eg_api_key') || '';
+
+    function render(text) {
+      qrEl.innerHTML = '';
+      new QRCode(qrEl, { text: text, width: 320, height: 320, correctLevel: QRCode.CorrectLevel.H });
+    }
+
+    async function refresh() {
+      errEl.textContent = '';
+      var key = keyEl.value.trim();
+      if (!key) { errEl.textContent = 'API key is required.'; return; }
+      localStorage.setItem('eg_api_key', key);
+      try {
+        var r = await fetch(base + '/api/qr-current', { headers: { 'x-api-key': key } });
+        if (!r.ok) { errEl.textContent = 'Server said ' + r.status + ' (check the API key).'; return; }
+        var d = await r.json();
+        if (!d.success || !d.qr_string) { errEl.textContent = 'No QR value returned.'; return; }
+        render(d.qr_string);
+        codeEl.textContent = d.qr_string;
+        metaEl.textContent = 'mode: ' + (d.mode || 'static') + (d.mode === 'totp' ? ' • rotates every ' + d.period + 's' : ' • fixed');
+        // Auto-refresh only when the QR rotates.
+        if (timer) { clearInterval(timer); timer = null; }
+        if (d.mode === 'totp') timer = setInterval(refresh, 5000);
+      } catch (e) {
+        errEl.textContent = 'Could not reach the server.';
+      }
+    }
+
+    document.getElementById('load').addEventListener('click', refresh);
+    if (keyEl.value) refresh(); // auto-load if key remembered
+  </script>
+</body>
+</html>

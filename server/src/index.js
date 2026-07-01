@@ -1,4 +1,5 @@
 require("dotenv").config();
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -36,6 +37,13 @@ if (isProd) {
 
 // Behind a reverse proxy (Render/Heroku/Nginx) so req.ip / protocol are correct.
 app.set("trust proxy", 1);
+
+// Simple admin QR display page. Served BEFORE helmet so its default CSP doesn't
+// block the inline script + the QR library CDN. The page itself is harmless
+// (it asks for the API key client-side and calls /api/qr-current same-origin).
+app.get("/qr", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "qr.html"));
+});
 
 app.use(helmet());
 
