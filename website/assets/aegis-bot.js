@@ -151,6 +151,9 @@
   var headFace = document.getElementById('agHeadFace');
   var launchFace = document.getElementById('agLaunchFace');
   var started = false, ratedCount = 0, feedbackShown = false, bubbleTimer;
+  // LLM endpoint (server proxy). Override with window.AEGIS_API if you host the API elsewhere.
+  var AG_API = (window.AEGIS_API || 'https://envguardian-server-j8yv.onrender.com/api/aegis/chat');
+  var history = []; // {role, content} conversation memory sent to the LLM
 
   /* ---------- Idle cycle ---------- */
   var ai = 0, fi = 0, showFact = false;
@@ -229,18 +232,61 @@
     });
   }
 
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function mdLite(s) {
+    var h = esc(s);
+    h = h.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    h = h.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent,#4f6ef7)">$1</a>');
+    return h.replace(/\n/g, '<br>');
+  }
+  function stripEmo(t) {
+    var m = t.match(/^\s*\[(happy|love|neutral|confused|sad|thinking)\]\s*/i);
+    return m ? { emo: m[1].toLowerCase(), text: t.slice(m[0].length) } : { emo: null, text: t };
+  }
+  function showTypingEl() {
+    var t = document.createElement('div');
+    t.className = 'ag-msg ag-bot ag-typing';
+    t.innerHTML = '<i></i><i></i><i></i>'; msgs.appendChild(t); scrollDown(); return t;
+  }
+
+  // Local FAQ brain — used if the LLM key isn't set or the request fails.
+  function localFallback(text) {
+    var r = respond(text);
+    history.push({ role: 'assistant', content: r.a.replace(/<[^>]+>/g, '') });
+    addMsg(r.a, 'bot'); setHead(r.emo);
+    if (!r.noRate) addRating();
+    if (r.bye) setTimeout(showFeedback, 500);
+  }
+
   function send(text) {
     if (!text.trim()) return;
-    addMsg(text.replace(/</g, '&lt;'), 'user');
+    addMsg(esc(text), 'user');
     input.value = '';
     setHead('thinking');
-    typing(function () {
-      var r = respond(text);
-      addMsg(r.a, 'bot');
-      setHead(r.emo);
-      if (!r.noRate) addRating();
-      if (r.bye) setTimeout(showFeedback, 500);
-    });
+    var low = text.toLowerCase();
+    // Guardrail + flow shortcuts handled locally (never sent to the LLM).
+    if (SECRET_RE.test(low)) { var t0 = showTypingEl(); setTimeout(function () { t0.remove(); var r = respond(text); addMsg(r.a, 'bot'); setHead('confused'); }, 500); return; }
+    if (BYE_RE.test(low)) { var t1 = showTypingEl(); setTimeout(function () { t1.remove(); addMsg('Thanks for chatting! One quick thing before you go 👇', 'bot'); setHead('happy'); showFeedback(); }, 400); return; }
+
+    history.push({ role: 'user', content: text });
+    var typingEl = showTypingEl();
+    var done = false;
+    var guard = setTimeout(function () { if (done) return; done = true; typingEl.remove(); localFallback(text); }, 22000);
+    fetch(AG_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-12) }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (done) return; done = true; clearTimeout(guard); typingEl.remove();
+        if (d && d.success && d.reply) {
+          var p = stripEmo(d.reply);
+          history.push({ role: 'assistant', content: p.text });
+          addMsg(mdLite(p.text), 'bot');
+          setHead(p.emo || 'happy');
+          if (p.emo !== 'confused') addRating();
+        } else {
+          localFallback(text); // no LLM key / error → FAQ brain
+        }
+      })
+      .catch(function () { if (done) return; done = true; clearTimeout(guard); typingEl.remove(); localFallback(text); });
   }
 
   var CHIPS = ['How does it work?', 'Key features', 'Is my privacy safe?', 'Which industries?', 'Pricing', 'Book a demo'];
