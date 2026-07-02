@@ -4,6 +4,18 @@
   var yr = document.getElementById('yr');
   if (yr) yr.textContent = new Date().getFullYear();
 
+  // scroll progress bar
+  var prog = document.createElement('div');
+  prog.id = 'progress';
+  document.body.appendChild(prog);
+  function updateProgress() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    prog.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+
   // mobile nav
   var hamb = document.querySelector('.hamb');
   var links = document.querySelector('.nav-links');
