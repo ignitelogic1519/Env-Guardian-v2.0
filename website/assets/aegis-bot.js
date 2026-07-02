@@ -121,11 +121,13 @@
   var w = document.createElement('div');
   w.id = 'aegis-widget';
   w.innerHTML =
+    '<div class="ag-bar">' +
     '<div class="ag-idle" id="agIdle"></div>' +
     '<button class="ag-launcher" id="agLauncher" aria-label="Chat with Aegis">' +
       '<span class="ag-prop" id="agProp"></span><span class="ag-dot"></span>' +
       '<span id="agLaunchFace">' + agFace('happy') + '</span>' +
       '<span class="ag-label">Ask&nbsp;Aegis</span></button>' +
+    '</div>' +
     '<div class="ag-panel" id="agPanel" role="dialog" aria-label="Chat with Aegis">' +
       '<div class="ag-head">' +
         '<span id="agHeadFace">' + agFace('happy') + '</span>' +

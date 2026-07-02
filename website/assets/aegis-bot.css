@@ -1,17 +1,24 @@
 /* ===== Aegis floating bot ===== */
-#aegis-widget{position:fixed;right:22px;bottom:22px;z-index:300;font-family:Inter,system-ui,sans-serif}
+#aegis-widget{position:fixed;right:22px;bottom:22px;z-index:300;font-family:Inter,system-ui,sans-serif;pointer-events:none}
+.ag-launcher,.ag-panel{pointer-events:auto}
+/* collapsed row: bubble sits horizontally BESIDE the launcher (to its left) */
+.ag-bar{display:flex;align-items:center;justify-content:flex-end;gap:14px}
+#aegis-widget.open .ag-bar{display:none}
 .agsvg{display:block}
 .ag-blink{transform-box:fill-box;transform-origin:center;animation:agblink 4.6s infinite}
 @keyframes agblink{0%,93%,100%{transform:scaleY(1)}96.5%{transform:scaleY(.08)}}
 
-/* idle speech bubble (facts / actions) */
-.ag-idle{position:absolute;right:78px;bottom:26px;max-width:240px;padding:12px 14px;border-radius:16px 16px 4px 16px;
-   background:linear-gradient(145deg,#ffffff,#eaf0fb);box-shadow:8px 8px 20px rgba(31,54,120,.16),-8px -8px 20px rgba(255,255,255,.95);
-   font-size:13.5px;color:var(--ink,#16204a);line-height:1.45;opacity:0;transform:translateY(8px) scale(.96);
-   transition:opacity .4s,transform .4s;pointer-events:none}
+/* idle speech bubble — horizontal, beside Aegis (points right toward her) */
+.ag-idle{position:relative;width:262px;padding:14px 18px;border-radius:18px;
+   background:linear-gradient(145deg,#ffffff,#eaf0fb);
+   box-shadow:8px 8px 20px rgba(31,54,120,.16),-8px -8px 20px rgba(255,255,255,.95);
+   font-size:14px;font-weight:500;color:var(--ink,#16204a);line-height:1.5;
+   opacity:0;transform:translateX(12px) scale(.97);transition:opacity .4s cubic-bezier(.16,1,.3,1),transform .4s cubic-bezier(.16,1,.3,1);pointer-events:none}
+.ag-idle::after{content:"";position:absolute;right:-7px;top:50%;width:16px;height:16px;
+   transform:translateY(-50%) rotate(45deg);background:#e9eefb;border-radius:3px}
 .ag-idle.show{opacity:1;transform:none}
 .ag-idle b{color:var(--accent,#4f6ef7)}
-@media(max-width:520px){.ag-idle{display:none}}
+@media(max-width:680px){.ag-idle{display:none}}
 
 /* launcher */
 .ag-launcher{position:relative;display:flex;align-items:center;gap:8px;border:0;cursor:pointer;padding:8px 14px 8px 8px;
