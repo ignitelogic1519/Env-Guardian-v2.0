@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contact — Request an Env Guardian demo</title>
+<meta name="description" content="Request a live Env Guardian demo or ask a question. Zero-Trust security for BYOD, enforced by location." />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+
+<nav class="nav">
+  <a class="brand" href="index.html"><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="bn" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5z" fill="url(#bn)"/><path d="M8.5 12l2.4 2.4L15.5 9.8" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> Env Guardian</a>
+  <button class="hamb" aria-label="Menu"><span></span><span></span><span></span></button>
+  <div class="nav-links">
+    <a href="index.html">Home</a><a href="features.html">Features</a><a href="solutions.html">Solutions</a><a href="how-it-works.html">How it works</a><a href="contact.html">Contact</a>
+    <a class="btn btn-primary" href="contact.html">Request a demo</a>
+  </div>
+</nav>
+
+<header class="wrap" style="padding:40px 0 10px;text-align:center">
+  <span class="eyebrow reveal">Contact</span>
+  <h1 class="reveal">Let's secure your zone</h1>
+  <p class="lead center reveal">Tell us about the environment you need to protect — we'll tailor a live demo on a real device.</p>
+</header>
+
+<section class="wrap" style="padding-top:20px">
+  <div class="grid g2">
+    <!-- form -->
+    <form class="glass card reveal" action="mailto:ignite.logic1519@gmail.com" method="post" enctype="text/plain">
+      <h3 style="margin-top:0">Request a demo</h3>
+      <div class="field"><label for="name">Name</label><input id="name" name="Name" required placeholder="Your name"></div>
+      <div class="field"><label for="org">Organization</label><input id="org" name="Organization" placeholder="Company / institution"></div>
+      <div class="field"><label for="email">Work email</label><input id="email" type="email" name="Email" required placeholder="you@company.com"></div>
+      <div class="field"><label for="env">What zone do you need to secure?</label><textarea id="env" name="Environment" rows="4" placeholder="e.g. exam hall, server room, R&D lab…"></textarea></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">Send request</button>
+      <p style="color:var(--muted);font-size:12.5px;margin:12px 0 0">This opens your email app. Prefer to email directly? <a href="mailto:ignite.logic1519@gmail.com" style="color:var(--accent)">ignite.logic1519@gmail.com</a></p>
+    </form>
+
+    <!-- info + persona -->
+    <div>
+      <div class="glass persona reveal" style="margin-bottom:20px">
+        <svg class="avatar" viewBox="0 0 74 74" role="img" aria-label="Support"><circle cx="37" cy="37" r="37" fill="#eaf0ff"/><path d="M27 31a10 10 0 0120 0" fill="none" stroke="#16204a" stroke-width="3"/><rect x="23" y="31" width="5" height="9" rx="2.5" fill="#16204a"/><rect x="46" y="31" width="5" height="9" rx="2.5" fill="#16204a"/><circle cx="37" cy="34" r="11" fill="#4f6ef7"/><path d="M17 64c2-13 38-13 40 0z" fill="#4f6ef7"/></svg>
+        <div><div class="role">We'll get back fast</div><h3>Talk to a human</h3><p>Questions about deployment, OEM support or pricing? We're happy to help you scope a pilot.</p></div>
+      </div>
+      <div class="glass card reveal">
+        <h3 style="margin-top:0">What to expect</h3>
+        <ul class="tick-list">
+          <li><span class="t">✔</span> A 20-minute live walkthrough on a real phone</li>
+          <li><span class="t">✔</span> Your zone drawn on the map, enforcing in real time</li>
+          <li><span class="t">✔</span> Guidance on rollout for your device fleet &amp; OEMs</li>
+          <li><span class="t">✔</span> Honest talk on what BYOD can and can't guarantee</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="wrap">
+  <div class="head center"><span class="eyebrow reveal">FAQ</span><h2 class="reveal">Common questions</h2></div>
+  <div class="glass faq reveal">
+    <details open><summary>Do employees have to factory-reset or enroll their phones?</summary><p>No. Env Guardian runs as a normal app with granted permissions — no device wipe, no corporate enrollment. That's the whole point of the BYOD-friendly design.</p></details>
+    <details><summary>Is personal data or activity outside the zone tracked?</summary><p>No. Enforcement only activates inside the geofenced zone. Outside it, the phone behaves completely normally and nothing personal is collected.</p></details>
+    <details><summary>What happens if someone disables the app or VPN?</summary><p>It's detected. Disabling the enforcer, accessibility service or VPN raises a tamper signal that's reported to your dashboard and can trigger an auto-lock.</p></details>
+    <details><summary>Which devices are supported?</summary><p>Android across major OEMs. We include guided auto-start &amp; battery setup for aggressive skins (Xiaomi, Oppo, Realme, Vivo, Samsung) to keep the monitor alive.</p></details>
+    <details><summary>Can we manage it without a big dashboard?</summary><p>Yes. Zones, whitelists and time limits can be configured directly in the database today, with a web dashboard on the roadmap.</p></details>
+    <details><summary>How much does it cost to run?</summary><p>The backend and database run comfortably on free tiers (Render + Neon). The app is distributed privately as an APK.</p></details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div><div class="brand" style="margin-bottom:10px"><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="bf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5z" fill="url(#bf)"/></svg> Env Guardian</div>
+      <p style="color:var(--muted);max-width:320px;font-size:14px;margin:0">Zero-Trust security for BYOD, enforced by location.</p></div>
+    <div><h4>Product</h4><a href="features.html">Features</a><a href="how-it-works.html">How it works</a><a href="solutions.html">Solutions</a></div>
+    <div><h4>Company</h4><a href="contact.html">Request a demo</a><a href="mailto:ignite.logic1519@gmail.com">Contact us</a></div>
+  </div>
+  <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
+</footer>
+<script src="assets/main.js"></script>
+</body>
+</html>

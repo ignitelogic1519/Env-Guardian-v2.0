@@ -4,254 +4,168 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Env Guardian — Zero-Trust security for BYOD, by location</title>
-<meta name="description" content="Env Guardian locks down personal phones the moment they enter a restricted zone — blocking unapproved apps, cutting their network, and verifying presence — then restores full access when they leave." />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg0:#0b0f24; --bg1:#111a3f; --bg2:#0c2233;
-    --accent:#5b8cff; --accent2:#36d6c3; --ink:#eef1f8; --muted:#98a1bb;
-    --glass:rgba(255,255,255,.06); --glass-brd:rgba(255,255,255,.14);
-    color-scheme:dark;
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg0);overflow-x:hidden;line-height:1.6}
-  h1,h2,h3,.brand{font-family:Outfit,sans-serif;letter-spacing:-.02em}
-  a{color:inherit;text-decoration:none}
-
-  /* ---------- Moving aurora background ---------- */
-  .bg{position:fixed;inset:0;z-index:-2;background:linear-gradient(160deg,var(--bg0),var(--bg1) 55%,var(--bg2));}
-  .blob{position:fixed;z-index:-1;border-radius:50%;filter:blur(90px);opacity:.55;will-change:transform}
-  .b1{width:520px;height:520px;background:#3f5bff;top:-120px;left:-120px;animation:float1 18s ease-in-out infinite}
-  .b2{width:460px;height:460px;background:#1fbfa8;bottom:-140px;right:-100px;animation:float2 22s ease-in-out infinite}
-  .b3{width:380px;height:380px;background:#8a5bff;top:40%;left:55%;animation:float3 26s ease-in-out infinite}
-  @keyframes float1{0%,100%{transform:translate(0,0)}50%{transform:translate(120px,80px)}}
-  @keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(-100px,-70px)}}
-  @keyframes float3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-80px,40px) scale(1.15)}}
-
-  .wrap{max-width:1140px;margin:0 auto;padding:0 22px}
-
-  /* ---------- Nav ---------- */
-  nav{position:sticky;top:14px;z-index:20;margin:14px auto;max-width:1140px;
-      display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-radius:18px;
-      background:var(--glass);border:1px solid var(--glass-brd);backdrop-filter:blur(14px)}
-  .brand{font-weight:800;font-size:20px;display:flex;align-items:center;gap:10px}
-  .brand .dot{width:12px;height:12px;border-radius:4px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
-  .nav-links{display:flex;gap:26px;font-size:14px;color:var(--muted)}
-  .nav-links a:hover{color:var(--ink)}
-  .btn{display:inline-block;padding:11px 20px;border-radius:12px;font-weight:600;font-size:14px;cursor:pointer;border:1px solid transparent;transition:.2s}
-  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04122a}
-  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(91,140,255,.35)}
-  .btn-ghost{background:transparent;border-color:var(--glass-brd);color:var(--ink)}
-  .btn-ghost:hover{background:var(--glass)}
-  @media(max-width:760px){.nav-links{display:none}}
-
-  /* ---------- Hero ---------- */
-  header{padding:70px 0 40px;text-align:center}
-  .pill{display:inline-block;padding:7px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-brd);
-        font-size:13px;color:var(--accent2);font-weight:600;backdrop-filter:blur(10px)}
-  h1{font-size:clamp(34px,6vw,66px);line-height:1.05;margin:22px auto 18px;max-width:900px}
-  .grad{background:linear-gradient(120deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .lead{font-size:clamp(16px,2.4vw,20px);color:var(--muted);max-width:680px;margin:0 auto 30px}
-  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
-
-  /* hero visual: glass phone */
-  .hero-visual{margin:56px auto 0;max-width:320px}
-  .phone{position:relative;margin:0 auto;width:270px;height:540px;border-radius:40px;background:var(--glass);
-         border:1px solid var(--glass-brd);backdrop-filter:blur(18px);box-shadow:0 40px 90px rgba(0,0,0,.5);
-         padding:20px;animation:bob 6s ease-in-out infinite}
-  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-16px)}}
-  .phone .notch{width:120px;height:22px;background:#0b0f24;border-radius:0 0 14px 14px;margin:-20px auto 16px}
-  .screen{height:100%;border-radius:26px;background:linear-gradient(160deg,#101a3d,#0c2233);border:1px solid rgba(255,255,255,.08);
-          padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:14px}
-  .shield{font-size:56px;margin-top:22px;filter:drop-shadow(0 8px 20px rgba(91,140,255,.5))}
-  .screen .status{font-family:Outfit;font-weight:700;font-size:20px;color:var(--accent2)}
-  .screen .sub{color:var(--muted);font-size:13px;text-align:center}
-  .clock{font-family:Outfit;font-weight:800;font-size:34px;color:#8effc9;margin-top:6px}
-  .ring{margin-top:8px;padding:8px 14px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid var(--glass-brd);font-size:12px;color:var(--muted)}
-
-  /* ---------- Sections ---------- */
-  section{padding:70px 0}
-  .eyebrow{color:var(--accent2);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
-  h2{font-size:clamp(26px,4vw,42px);margin:10px 0 16px}
-  .section-lead{color:var(--muted);max-width:640px}
-  .center{text-align:center;margin:0 auto}
-
-  .glass{background:var(--glass);border:1px solid var(--glass-brd);backdrop-filter:blur(14px);border-radius:22px}
-
-  .grid{display:grid;gap:18px}
-  .g3{grid-template-columns:repeat(3,1fr)}
-  .g4{grid-template-columns:repeat(4,1fr)}
-  @media(max-width:900px){.g3{grid-template-columns:1fr 1fr}.g4{grid-template-columns:1fr 1fr}}
-  @media(max-width:560px){.g3,.g4{grid-template-columns:1fr}}
-
-  .card{padding:24px}
-  .card .ico{font-size:30px}
-  .card h3{font-size:18px;margin:12px 0 6px}
-  .card p{color:var(--muted);font-size:14px;margin:0}
-
-  .steps{counter-reset:s}
-  .step{display:flex;gap:18px;padding:22px;margin-bottom:16px}
-  .step .n{flex:0 0 46px;height:46px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));
-           display:flex;align-items:center;justify-content:center;font-family:Outfit;font-weight:800;color:#04122a;font-size:20px}
-  .step h3{margin:2px 0 4px;font-size:18px}
-  .step p{margin:0;color:var(--muted);font-size:14px}
-
-  .pros{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  @media(max-width:640px){.pros{grid-template-columns:1fr}}
-  .pro{display:flex;gap:12px;align-items:flex-start;padding:16px 18px}
-  .pro .tick{color:var(--accent2);font-weight:800}
-  .pro b{font-family:Outfit}
-
-  .cta-band{padding:52px;text-align:center}
-  footer{padding:40px 0 60px;color:var(--muted);font-size:13px;text-align:center}
-
-  /* scroll reveal */
-  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
-  .reveal.vis{opacity:1;transform:none}
-  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none}.blob,.phone{animation:none}}
-</style>
+<meta name="description" content="Env Guardian secures personal phones inside restricted zones — blocking unapproved apps, cutting their network and verifying presence — then restores full access when they leave. No device wipe. BYOD-friendly." />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 <div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
 
-<nav>
-  <div class="brand"><span class="dot"></span> Env Guardian</div>
+<nav class="nav">
+  <a class="brand" href="index.html">
+    <svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="bn" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5z" fill="url(#bn)"/><path d="M8.5 12l2.4 2.4L15.5 9.8" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Env Guardian
+  </a>
+  <button class="hamb" aria-label="Menu"><span></span><span></span><span></span></button>
   <div class="nav-links">
-    <a href="#how">How it works</a>
-    <a href="#features">Features</a>
-    <a href="#why">Why us</a>
-    <a href="#tech">Under the hood</a>
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="solutions.html">Solutions</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="contact.html">Contact</a>
+    <a class="btn btn-primary" href="contact.html">Request a demo</a>
   </div>
-  <a class="btn btn-primary" href="#contact">Request a demo</a>
 </nav>
 
-<header class="wrap">
-  <span class="pill reveal">🛡 BYOD Mobile Device Management</span>
-  <h1 class="reveal">Secure zones. Personal phones.<br><span class="grad">Zero compromise.</span></h1>
-  <p class="lead reveal">Env Guardian turns any employee's personal Android into a compliant device — but <b>only where it matters</b>. Enter a restricted zone and unapproved apps are blocked, their network is cut, and presence is verified. Walk out, and the phone is instantly theirs again.</p>
-  <div class="cta reveal">
-    <a class="btn btn-primary" href="#how">See how it works</a>
-    <a class="btn btn-ghost" href="#features">Explore features</a>
-  </div>
-
-  <div class="hero-visual reveal">
-    <div class="phone">
-      <div class="notch"></div>
-      <div class="screen">
-        <div class="shield">🛡</div>
-        <div class="status">SECURE ZONE ACTIVE</div>
-        <div class="sub">Zero-Trust perimeter engaged</div>
-        <div class="ring">TIME IN ZONE</div>
-        <div class="clock">00:12:47</div>
-        <div class="ring">✅ Verified · 🔒 Apps locked · 🌐 Network guarded</div>
+<!-- HERO -->
+<header class="hero wrap">
+  <div class="hero-grid">
+    <div>
+      <span class="pill reveal">🛡 BYOD Mobile Device Management</span>
+      <h1 class="reveal">Secure zones.<br>Personal phones.<br><span class="grad">Zero compromise.</span></h1>
+      <p class="lead reveal">Env Guardian turns any employee's personal Android into a compliant device — but only where it matters. Step into a restricted zone and unapproved apps are blocked, their network is cut and presence is verified. Walk out, and the phone is instantly theirs again.</p>
+      <div class="cta reveal">
+        <a class="btn btn-primary" href="how-it-works.html">See how it works →</a>
+        <a class="btn btn-ghost" href="features.html">Explore features</a>
+      </div>
+    </div>
+    <div class="reveal right">
+      <div class="phone-stack">
+        <div class="phone p-b float"><img src="assets/shots/map-zone.jpeg" alt="Restricted zone drawn on the map"></div>
+        <div class="phone p-a float"><img src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer"></div>
       </div>
     </div>
   </div>
 </header>
 
-<!-- Context / problem -->
-<section class="wrap" id="problem">
-  <div class="glass card reveal" style="padding:40px">
-    <span class="eyebrow">The BYOD blind spot</span>
-    <h2>You can't wipe a phone you don't own.</h2>
-    <p class="section-lead">Employees carry personal phones into labs, exam halls, data centres and secure floors — with cameras, cloud uploads and endless distractions. Traditional MDM means enrolling or factory-resetting the device, which nobody agrees to for a personal phone. So the risk goes unmanaged. <b>Env Guardian closes that gap by enforcing policy based on location — without ever owning the device.</b></p>
-  </div>
-</section>
-
-<!-- How it works -->
-<section class="wrap" id="how">
-  <div class="center" style="max-width:640px;margin-bottom:34px">
-    <span class="eyebrow reveal">How it works</span>
-    <h2 class="reveal">Four steps, fully automatic</h2>
-    <p class="section-lead center reveal">No admin babysitting. The device enforces itself the moment it crosses your geofence.</p>
-  </div>
-  <div class="steps">
-    <div class="glass step reveal"><div class="n">1</div><div><h3>Enroll once</h3><p>The employee installs the app, grants permissions, and the device is sealed and permanently bound to their identity (anti-theft: no one else can re-register it).</p></div></div>
-    <div class="glass step reveal"><div class="n">2</div><div><h3>Enter the zone</h3><p>A geofence trigger brings the app forward. The employee scans a physical QR — static or time-rotating — to prove they're actually there.</p></div></div>
-    <div class="glass step reveal"><div class="n">3</div><div><h3>Enforce automatically</h3><p>Only whitelisted apps run. Per-app daily time limits apply. Unapproved apps lose their internet. Every allow/block is logged.</p></div></div>
-    <div class="glass step reveal"><div class="n">4</div><div><h3>Leave &amp; restore</h3><p>Cross the boundary and full access returns instantly — while compliance and activity are reported back to your server in real time.</p></div></div>
-  </div>
-</section>
-
-<!-- Features -->
-<section class="wrap" id="features">
-  <div class="center" style="max-width:640px;margin-bottom:34px">
-    <span class="eyebrow reveal">Capabilities</span>
-    <h2 class="reveal">Everything you need to hold a perimeter</h2>
-  </div>
-  <div class="grid g4">
-    <div class="glass card reveal"><div class="ico">📍</div><h3>Geofenced zones</h3><p>Define any restricted area as a polygon. Enforcement activates only inside it.</p></div>
-    <div class="glass card reveal"><div class="ico">🛡</div><h3>Zero-trust app blocking</h3><p>Non-whitelisted apps are pushed off-screen instantly by an on-device enforcer.</p></div>
-    <div class="glass card reveal"><div class="ico">⏱</div><h3>Per-app time limits</h3><p>Allow an app, but only for X minutes a day — measured and enforced on-device.</p></div>
-    <div class="glass card reveal"><div class="ico">🔐</div><h3>QR presence auth</h3><p>Verify physical presence with a static or rotating (TOTP) zone QR code.</p></div>
-    <div class="glass card reveal"><div class="ico">🌐</div><h3>Network guard</h3><p>Cut internet to unapproved apps while in-zone with a local, no-root VPN.</p></div>
-    <div class="glass card reveal"><div class="ico">🚫</div><h3>Anti-theft binding</h3><p>A device is locked to its first owner — a stolen phone can't be re-claimed.</p></div>
-    <div class="glass card reveal"><div class="ico">📊</div><h3>Live compliance</h3><p>Real-time telemetry, compliance scoring, and remote lock — all server-driven.</p></div>
-    <div class="glass card reveal"><div class="ico">⚙️</div><h3>No device wipe</h3><p>Runs on personal phones with granted permissions — no reset, no enrollment friction.</p></div>
-  </div>
-</section>
-
-<!-- Why us / pros -->
-<section class="wrap" id="why">
-  <div class="center" style="max-width:640px;margin-bottom:34px">
-    <span class="eyebrow reveal">Why Env Guardian</span>
-    <h2 class="reveal">Built for the real world of BYOD</h2>
-  </div>
-  <div class="pros">
-    <div class="glass pro reveal"><span class="tick">✔</span><div><b>Zero enrollment friction</b> — no factory reset, no corporate profile. Employees keep their phone.</div></div>
-    <div class="glass pro reveal"><span class="tick">✔</span><div><b>Location-scoped</b> — control applies only inside the zone; personal life stays private.</div></div>
-    <div class="glass pro reveal"><span class="tick">✔</span><div><b>Tamper-aware</b> — disabling the enforcer, VPN or accessibility is detected and reported.</div></div>
-    <div class="glass pro reveal"><span class="tick">✔</span><div><b>Cross-OEM</b> — with guided auto-start help for Xiaomi, Oppo, Realme, Samsung &amp; more.</div></div>
-    <div class="glass pro reveal"><span class="tick">✔</span><div><b>Cheap to run</b> — backend + database host free on Render and Neon.</div></div>
-    <div class="glass pro reveal"><span class="tick">✔</span><div><b>Developer-friendly</b> — modular, feature-first codebase that teams can extend.</div></div>
-  </div>
-</section>
-
-<!-- Tech -->
-<section class="wrap" id="tech">
-  <div class="glass card reveal" style="padding:40px;text-align:center">
-    <span class="eyebrow">Under the hood</span>
-    <h2>A clean, modern stack</h2>
-    <p class="section-lead center">A <b>Flutter</b> app with native Android enforcement (accessibility, usage-stats, notification-listener, VPN), a <b>Node.js + Express</b> API, and a serverless <b>PostgreSQL</b> database. Auto-migrating schema, API-key + per-device token auth, and a real-time heartbeat.</p>
-    <div class="grid g4" style="margin-top:26px">
-      <div class="glass card reveal"><div class="ico">📱</div><h3>Flutter app</h3><p>One codebase, native power.</p></div>
-      <div class="glass card reveal"><div class="ico">🧩</div><h3>Native modules</h3><p>Accessibility · Usage · VPN.</p></div>
-      <div class="glass card reveal"><div class="ico">🖥️</div><h3>Node API</h3><p>REST + real-time heartbeat.</p></div>
-      <div class="glass card reveal"><div class="ico">🗄️</div><h3>PostgreSQL</h3><p>Serverless, auto-provisioned.</p></div>
+<!-- MASCOT CALLOUT -->
+<section class="wrap" style="padding-top:20px">
+  <div class="glass callout reveal">
+    <div class="who">
+      <svg class="aegis float" viewBox="0 0 150 170" width="140" height="158" role="img" aria-label="Aegis mascot">
+        <defs><linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>
+        <path d="M75 8 L138 31 V80 C138 126 110 148 75 158 C40 148 12 126 12 80 V31 Z" fill="url(#ag)"/>
+        <path d="M75 8 L138 31 V80 C138 126 110 148 75 158 C40 148 12 126 12 80 V31 Z" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
+        <rect x="40" y="58" width="70" height="50" rx="19" fill="#fff" opacity=".96"/>
+        <circle cx="61" cy="81" r="8" fill="#16204a"/><circle cx="89" cy="81" r="8" fill="#16204a"/>
+        <circle cx="63.4" cy="78.6" r="2.5" fill="#fff"/><circle cx="91.4" cy="78.6" r="2.5" fill="#fff"/>
+        <path d="M60 95 Q75 108 90 95" fill="none" stroke="#16204a" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="49" cy="93" r="4" fill="#ffb4a2" opacity=".7"/><circle cx="101" cy="93" r="4" fill="#ffb4a2" opacity=".7"/>
+        <g class="wave"><rect x="126" y="60" width="12" height="28" rx="6" fill="url(#ag)"/><circle cx="132" cy="55" r="9" fill="#ffd7a8"/></g>
+        <circle cx="110" cy="122" r="15" fill="#14b8a6" stroke="#fff" stroke-width="3"/>
+        <path d="M103.5 122 l4.5 4.5 l8.5 -9.5" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="bubble">
+      <strong>Hi, I'm Aegis 👋 — your perimeter guardian.</strong>
+      <p style="margin:8px 0 0;color:var(--muted)">I watch the boundary so your team doesn't have to. The moment a phone crosses into a secure area, I lock it down to policy, verify the person is really there, and log everything — then hand the phone straight back when they leave. Personal privacy stays personal; only the zone is controlled.</p>
     </div>
   </div>
 </section>
 
+<!-- STATS -->
+<section class="wrap" style="padding-top:24px">
+  <div class="stats">
+    <div class="glass stat reveal"><div class="n" data-count="8" data-suffix="+"></div><div class="l">Enforcement features</div></div>
+    <div class="glass stat reveal"><div class="n" data-count="0"></div><div class="l">Device wipes required</div></div>
+    <div class="glass stat reveal"><div class="n" data-count="10" data-suffix="s"></div><div class="l">Policy sync to device</div></div>
+    <div class="glass stat reveal"><div class="n" data-count="24" data-suffix="/7"></div><div class="l">Perimeter monitoring</div></div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="wrap">
+  <div class="glass card reveal" style="padding:40px">
+    <span class="eyebrow">The BYOD blind spot</span>
+    <h2>You can't wipe a phone you don't own.</h2>
+    <p class="lead">Employees carry personal phones into labs, exam halls, data centres and secure floors — with cameras, cloud uploads and endless distractions. Traditional MDM means enrolling or factory-resetting the device, which nobody accepts for a personal phone. So the risk goes unmanaged. <b>Env Guardian enforces policy by location — without ever owning the device.</b></p>
+  </div>
+</section>
+
+<!-- FEATURES PREVIEW -->
+<section class="wrap" id="features">
+  <div class="head center">
+    <span class="eyebrow reveal">Capabilities</span>
+    <h2 class="reveal">Everything you need to hold a perimeter</h2>
+    <p class="lead center reveal">Eight enforcement layers, all automatic inside your zone.</p>
+  </div>
+  <div class="grid g4">
+    <div class="card reveal"><div class="ico">📍</div><h3>Geofenced zones</h3><p>Define any restricted area as a polygon. Enforcement activates only inside it.</p></div>
+    <div class="card reveal"><div class="ico">🛡️</div><h3>Zero-trust blocking</h3><p>Non-whitelisted apps are pushed off-screen instantly by an on-device enforcer.</p></div>
+    <div class="card reveal"><div class="ico">⏱️</div><h3>Per-app time limits</h3><p>Allow an app, but only for X minutes a day — measured and enforced on-device.</p></div>
+    <div class="card reveal"><div class="ico">🔐</div><h3>QR presence auth</h3><p>Verify physical presence with a static or rotating (TOTP) zone QR code.</p></div>
+    <div class="card reveal"><div class="ico">🌐</div><h3>Network guard</h3><p>Cut internet to unapproved apps in-zone with a local, no-root VPN.</p></div>
+    <div class="card reveal"><div class="ico">🚫</div><h3>Anti-theft binding</h3><p>A device is locked to its first owner — a stolen phone can't be re-claimed.</p></div>
+    <div class="card reveal"><div class="ico">📊</div><h3>Live compliance</h3><p>Real-time telemetry, compliance scoring and remote lock — server-driven.</p></div>
+    <div class="card reveal"><div class="ico">⚙️</div><h3>No device wipe</h3><p>Runs on personal phones with granted permissions — no reset, no enrollment.</p></div>
+  </div>
+  <div class="center" style="margin-top:28px"><a class="btn btn-ghost reveal" href="features.html">See all features in detail →</a></div>
+</section>
+
+<!-- HOW IT WORKS MINI -->
+<section class="wrap">
+  <div class="head center">
+    <span class="eyebrow reveal">How it works</span>
+    <h2 class="reveal">Four steps, fully automatic</h2>
+  </div>
+  <div class="grid g4">
+    <div class="card reveal"><div class="ico">1</div><h3>Enroll once</h3><p>Install, grant permissions, and the device is sealed &amp; bound to the employee.</p></div>
+    <div class="card reveal"><div class="ico">2</div><h3>Enter the zone</h3><p>A geofence trigger brings the app forward — scan the QR to prove presence.</p></div>
+    <div class="card reveal"><div class="ico">3</div><h3>Enforce</h3><p>Only approved apps run; limits apply; unapproved apps lose network; all logged.</p></div>
+    <div class="card reveal"><div class="ico">4</div><h3>Leave &amp; restore</h3><p>Cross the boundary and full access returns instantly. Compliance is reported.</p></div>
+  </div>
+  <div class="center" style="margin-top:28px"><a class="btn btn-ghost reveal" href="how-it-works.html">Walk through it with screenshots →</a></div>
+</section>
+
+<!-- INDUSTRIES TEASER -->
+<section class="wrap">
+  <div class="head center">
+    <span class="eyebrow reveal">Where it helps</span>
+    <h2 class="reveal">Built for high-trust environments</h2>
+  </div>
+  <div class="grid g3">
+    <div class="card reveal"><div class="ico">🏢</div><h3>Corporate &amp; IT</h3><p>Stop data exfiltration and shadow-IT apps on secure floors and server rooms.</p></div>
+    <div class="card reveal"><div class="ico">🎓</div><h3>Exams &amp; Education</h3><p>Enforce a no-distraction, no-cheating perimeter in exam halls and labs.</p></div>
+    <div class="card reveal"><div class="ico">🏭</div><h3>Manufacturing &amp; R&amp;D</h3><p>Block cameras and uploads around prototypes and production lines.</p></div>
+  </div>
+  <div class="center" style="margin-top:28px"><a class="btn btn-ghost reveal" href="solutions.html">Explore solutions by industry →</a></div>
+</section>
+
 <!-- CTA -->
-<section class="wrap" id="contact">
-  <div class="glass cta-band reveal">
+<section class="wrap">
+  <div class="glass band reveal">
     <h2>Bring policy to the places that need it.</h2>
-    <p class="section-lead center" style="margin-bottom:26px">See Env Guardian enforce a live zone in minutes.</p>
-    <div class="cta">
-      <a class="btn btn-primary" href="mailto:ignite.logic1519@gmail.com?subject=Env%20Guardian%20demo">Request a demo</a>
-      <a class="btn btn-ghost" href="#how">How it works</a>
+    <p class="lead center" style="margin-bottom:24px">See Env Guardian enforce a live zone in minutes.</p>
+    <div class="cta" style="justify-content:center">
+      <a class="btn btn-primary" href="contact.html">Request a demo</a>
+      <a class="btn btn-ghost" href="features.html">Explore features</a>
     </div>
   </div>
 </section>
 
 <footer>
-  <div class="brand center" style="justify-content:center;margin-bottom:8px"><span class="dot"></span> Env Guardian</div>
-  Zero-Trust security for BYOD, by location. &copy; <span id="yr"></span> Env Guardian.
+  <div class="wrap foot">
+    <div>
+      <div class="brand" style="margin-bottom:10px"><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="bf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5z" fill="url(#bf)"/></svg> Env Guardian</div>
+      <p style="color:var(--muted);max-width:320px;font-size:14px;margin:0">Zero-Trust security for BYOD, enforced by location. No device wipe, no enrollment friction.</p>
+      <div class="badge-row"><span class="chip">Flutter</span><span class="chip">Node.js</span><span class="chip">PostgreSQL</span><span class="chip">Android</span></div>
+    </div>
+    <div><h4>Product</h4><a href="features.html">Features</a><a href="how-it-works.html">How it works</a><a href="solutions.html">Solutions</a></div>
+    <div><h4>Company</h4><a href="contact.html">Request a demo</a><a href="mailto:ignite.logic1519@gmail.com">Contact us</a></div>
+  </div>
+  <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
 </footer>
-
-<script>
-  document.getElementById('yr').textContent = new Date().getFullYear();
-  // Scroll-reveal
-  var io = new IntersectionObserver(function(entries){
-    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('vis'); io.unobserve(e.target); } });
-  }, {threshold:.12});
-  document.querySelectorAll('.reveal').forEach(function(el,i){
-    el.style.transitionDelay = (i % 4 * 60) + 'ms';
-    io.observe(el);
-  });
-</script>
+<script src="assets/main.js"></script>
 </body>
 </html>

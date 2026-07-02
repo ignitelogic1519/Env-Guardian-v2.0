@@ -1,24 +1,36 @@
 # Env Guardian — Marketing Website
 
-A single-file animated landing page that explains and sells the product
-(glassmorphism, moving aurora background, animated hero, scroll-reveal).
+A complete, multi-page, animated product site (light theme, glassmorphism,
+animate-on-scroll, responsive) with the mascot **Aegis** and real app screenshots.
+
+## Pages
+| File | Purpose |
+|------|---------|
+| `index.html` | Home — hero, mascot, stats, problem, feature + industry teasers |
+| `features.html` | Every capability, with screenshots |
+| `solutions.html` | Benefits by industry + persona characters |
+| `how-it-works.html` | The 4-step flow, with real app screens |
+| `contact.html` | Demo request form + FAQ |
+
+Shared assets live in `assets/` (`style.css`, `main.js`, `shots/` screenshots).
 
 ## View it
-- **Locally:** just open `index.html` in any browser (double-click it). No build,
-  no server needed. Fonts + nothing else load from the internet.
+- **Locally:** open `index.html` in a browser (double-click). Everything is
+  relative-path, so navigation between pages works offline. Fonts load from
+  Google Fonts (needs internet); without it, it falls back to system fonts.
 
-## Deploy it (free, ~2 min)
-Any static host works — the whole site is one file:
+## Deploy (free, ~2 min) — publish the `website/` folder
 - **Netlify:** drag the `website/` folder onto <https://app.netlify.com/drop>.
-- **Vercel:** `vercel` in this folder, or import the repo and set root = `website`.
-- **GitHub Pages:** enable Pages and point it at this folder / a `gh-pages` branch.
+- **Vercel:** import the repo, set the project root to `website`.
+- **GitHub Pages:** serve the `website/` folder (or copy it to a `docs/` folder / `gh-pages` branch).
 - **Render:** New → Static Site → publish directory `website`.
 
-## Editing
-Everything (HTML + CSS + JS) is inline in `index.html`:
-- Copy/sections are plain HTML — edit the text directly.
-- Colours are CSS variables at the top (`--accent`, `--accent2`, backgrounds).
-- The demo email link points to `ignite.logic1519@gmail.com` — change as needed.
+## Customize
+- **Colors:** CSS variables at the top of `assets/style.css` (`--accent`, `--accent2`, backgrounds).
+- **Copy:** plain HTML in each page — edit text directly.
+- **Contact:** the form uses a `mailto:` to `ignite.logic1519@gmail.com`. For a real
+  inbox-free submission, swap the `<form action>` to a Formspree/Getform endpoint.
+- **Screenshots:** in `assets/shots/` — replace with newer captures anytime (keep names).
 
-> This is a first/rough marketing cut. Next steps could be: real screenshots,
-> a logo, a testimonials section, and a proper contact form.
+> First complete cut. Easy next steps: a logo, testimonials, a pricing page,
+> and swapping the mailto form for a hosted form service.
