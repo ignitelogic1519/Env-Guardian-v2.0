@@ -1,0 +1,256 @@
+===============================================================================
+ ENV GUARDIAN v2.0  —  PROJECT SUMMARY
+ Generated: 2026-07-03
+===============================================================================
+
+WHAT THIS PROJECT IS
+-------------------------------------------------------------------------------
+Env Guardian is a BYOD (Bring-Your-Own-Device) Mobile Device Management /
+Zero-Trust security system. When an employee's personal Android phone enters a
+defined "restricted zone" (a GPS geofence), the app enforces policy: it blocks
+non-whitelisted apps, can cut internet with a local no-root VPN, verifies the
+person's presence with a QR scan (static or rotating TOTP code), applies per-app
+daily time limits, and logs every allow/block. When the phone leaves the zone,
+full access is restored automatically.
+
+Key principles:
+- BYOD-friendly: NO factory reset, NO corporate enrollment. Runs as a normal
+  app with granted permissions.
+- Anti-theft: a device is permanently bound to its first owner; a lost/stolen
+  phone cannot be re-registered by someone else.
+- Privacy: enforcement ONLY happens inside the zone; nothing personal is
+  collected outside it.
+- Tamper-aware: disabling the enforcer, VPN or accessibility is detected and
+  reported; devices heartbeat status/location/compliance in real time.
+
+Tech stack: Flutter Android app (native enforcement) + Node.js/Express backend
++ PostgreSQL (Neon) + Render hosting. Plus a static marketing website with an
+AI chatbot mascot ("Aegis").
+
+Target industries: corporate/IT security, exams & education, healthcare, data
+centres, R&D & manufacturing, government/defense, finance, call centres/BPO,
+media & events.
+
+
+===============================================================================
+ FOLDER-BY-FOLDER BREAKDOWN
+===============================================================================
+
+-------------------------------------------------------------------------------
+ /app  —  FLUTTER ANDROID CLIENT (the device agent)
+-------------------------------------------------------------------------------
+The mobile app installed on each employee device. Feature-first modular Dart
+code plus native Kotlin services for the actual OS-level enforcement.
+
+  app/lib/
+    main.dart                          App entry point.
+    app.dart                           Root app widget / routing.
+    cloud_sync.dart                    Talks to the backend (register device,
+                                       sync settings/geofence, push heartbeats,
+                                       fetch whitelists & time-limit policies).
+    core/
+      background_service.dart          Foreground service loop: geofence check,
+                                       enforcement trigger, heartbeat.
+      platform.dart                    Method-channel bridge to native Kotlin.
+      theme/glass.dart                 Glassmorphism UI helpers.
+      theme/neumorphic.dart            Neumorphism UI helpers.
+    features/
+      onboarding/admin_setup_screen.dart   First-run device registration.
+      command_center/command_center_screen.dart  Main dashboard/home screen.
+      map/map_tab.dart                 Shows restricted zone + device position,
+                                       Inside/Outside badge.
+      armory/armory_tab.dart           App whitelist / controls view.
+      logs/log_tab.dart                Local allow/block event log.
+
+  app/android/.../kotlin/com/example/env_guardian/   (NATIVE ENFORCEMENT)
+    MainActivity.kt                    Method-channel host; permission prompts.
+    AppBlockerService.kt               Accessibility service — detects & blocks
+                                       non-whitelisted foreground apps.
+    GuardianVpnService.kt              Local no-root VpnService — cuts internet
+                                       for non-whitelisted apps (Feature B).
+    GuardianNotifListener.kt           Notification-listener — pre-scan clean-
+                                       state gate (Feature A).
+    res/xml/accessibility_service_config.xml  Accessibility declaration.
+    AndroidManifest.xml                Permissions & service registrations.
+
+  Other folders (ios/, web/, linux/, macos/, windows/, test/) are the default
+  Flutter scaffold — Android is the only actively targeted platform.
+
+  App id (Feature H): com.envguardian.mdm (production).
+
+
+-------------------------------------------------------------------------------
+ /server  —  NODE.JS + EXPRESS BACKEND  (hosted on Render)
+-------------------------------------------------------------------------------
+REST API + PostgreSQL persistence. Configures zones, whitelists, time-limits;
+receives device heartbeats; serves the admin QR page; proxies the website bot.
+
+  server/src/
+    index.js                 App bootstrap. Trust-proxy, helmet, CORS (allows
+                             localhost + *.onrender.com / *.vercel.app /
+                             *.netlify.app + CORS_ORIGINS env), morgan logging,
+                             route mounting, /health, /qr page, 404/error
+                             handlers, schema init on boot. Production safety
+                             check refuses to start with insecure default
+                             secrets.
+    db/
+      pool.js                PG connection pool (SSL auto-enabled off-localhost).
+      initSchema.js          Creates all tables + seeds defaults on a fresh DB
+                             (reports "Schema ready 34/34").
+    middleware/
+      auth.js                requireAuth (JWT) + x-api-key checks; optional
+                             per-device-token enforcement (Feature F).
+    routes/
+      auth.js                Admin login / JWT issue.
+      agents.js              Device (agent) registration, heartbeats, remote
+                             lock, compliance; QR current endpoint. Device
+                             bound to first owner (anti-theft).
+      settings.js            Geofence zone, whitelist, global config (GET needs
+                             auth + x-api-key).
+      appUsage.js            App usage-stats ingestion.
+      policies.js            Per-app daily time-limit policies.
+      aegis.js               *** Website chatbot LLM proxy (see below). ***
+    utils/
+      agentMetrics.js        Compliance-score / metrics helpers.
+
+  server/public/
+    qr.html                  Standalone admin page that displays the current
+                             zone QR (asks for API key client-side, served
+                             before helmet so its CSP doesn't block the QR lib).
+
+  server/.env.example        Documents all env vars: PORT, NODE_ENV,
+                             DATABASE_URL, JWT_SECRET, API_KEY, ADMIN_PASSWORD,
+                             ENFORCE_DEVICE_TOKEN, LLM_API_KEY, LLM_MODEL,
+                             CORS_ORIGINS. Never commit a real .env.
+
+  AEGIS LLM PROXY (routes/aegis.js) — the AI chatbot backend:
+    - POST /api/aegis/chat. Calls Anthropic (Claude) with a SERVER-SIDE key so
+      no secret ever reaches the browser.
+    - If LLM_API_KEY is unset, returns success:false so the widget falls back to
+      its built-in FAQ brain (never breaks).
+    - Guardrails in the system prompt: NEVER reveal secrets/passwords/keys/
+      tokens/source code/bypasses; stay on-topic (product/business only); can't
+      write code or perform actions — it only returns text answers about the
+      product; every reply starts with an emotion tag [happy]/[love]/[neutral]/
+      [confused]/[thinking].
+    - In-memory per-IP rate limit (25 req/60s); message sanitizing (last 12,
+      valid roles, capped length); 20s AbortController timeout; default model
+      claude-haiku-4-5-20251001 (override via LLM_MODEL).
+
+
+-------------------------------------------------------------------------------
+ /website  —  MARKETING SITE + AEGIS CHATBOT  (static, deploy anywhere)
+-------------------------------------------------------------------------------
+A complete, multi-page, animated product website. Light theme, glassmorphism +
+neumorphism blend, animate-on-scroll, responsive, with the animated mascot
+"Aegis" and real app screenshots.
+
+  Pages:
+    index.html          Home — hero, animated Aegis "Meet your guardian" stage,
+                        stats, problem, feature + industry teasers.
+    features.html       Every capability, with screenshots.
+    solutions.html      Benefits by industry + persona characters.
+    how-it-works.html   The 4-step flow, with real app screens.
+    contact.html        Demo-request form (mailto) + FAQ.
+
+  assets/
+    style.css           Light theme, neumorphism+glass, strong scroll-reveal
+                        animations, scroll progress bar, animated mascot.
+    main.js             Scroll reveal, counters, nav, progress bar.
+    aegis-bot.js        The floating Aegis assistant: ~22 idle "tricks" on a
+                        5-sec cycle, "usefulness fact" popups, chat panel,
+                        emotion faces, star ratings, optional end-of-chat
+                        feedback. Calls the server LLM proxy; falls back to a
+                        built-in FAQ brain on any error / when run from file://.
+                        Client-side secret pre-check refuses to echo secrets.
+    aegis-bot.css       Widget styling; speech bubble sits horizontally to the
+                        LEFT of Aegis (in-flow, readable, right-pointing tail);
+                        widget is pointer-events:none so it doesn't block clicks.
+    shots/              Real app screenshots (safe-zone, secure-timer, map-zone,
+                        armory, logs, notif-enter, notif-safe, profile).
+
+  website/README.md     Deploy guide (Netlify/Vercel/Pages/Render) + how to
+                        activate the real LLM bot (set LLM_API_KEY, LLM_MODEL,
+                        add domain to CORS_ORIGINS, redeploy).
+
+
+-------------------------------------------------------------------------------
+ ROOT DOCUMENTATION
+-------------------------------------------------------------------------------
+  README.md          Project overview + detailed feature documentation +
+                     rollout status.
+  BACKLOG.md         Planned vs shipped feature backlog (items A–I).
+  ADMIN_DB_GUIDE.md  How admins configure zones/whitelists/limits directly in
+                     the database.
+  TEST_CASES.md      Manual QA plan + server smoke tests.
+  QA_CHECKLIST.md    User-story integrity checklist.
+  .gitignore         Excludes node_modules, build artifacts, .env, etc.
+
+
+===============================================================================
+ WHAT HAS BEEN DONE SO FAR  (chronological highlights)
+===============================================================================
+
+CORE PRODUCT & FEATURES (A–I backlog, all shipped):
+  - Restore-zone timer shown in the notification.
+  - Per-app daily time limits (admin-defined).
+  - Neumorphic UI theme + Usage Access affordance.
+  - Refactor: split monolithic main.dart into modular feature-first files.
+  - Map: always show restricted zone; frame zone + device with Inside/Outside
+    badge.
+  - Feature A: pre-scan clean-state gate (Notification Access).
+  - Feature B: VPN network guard (block non-whitelisted apps' internet).
+  - Feature C: auto-foreground prompt on zone entry.
+  - Feature E: OEM auto-start helper + docs.
+  - Feature F: per-device auth tokens (staged, opt-in enforcement).
+  - Feature G: opt-in rotating (TOTP) QR codes.
+  - Feature H: production application id (com.envguardian.mdm).
+  - Security: bind a device to its first owner; block re-registration.
+  - UI: glassmorphism + neumorphism look with fonts and animations.
+
+INFRASTRUCTURE / HOSTING:
+  - Monorepo scaffolded (app / server / website).
+  - Backend hosted on Render; PostgreSQL on Neon (Schema ready 34/34).
+  - Admin /qr display page added.
+
+KEY BUG FIXES:
+  - Sent API key when syncing settings — geofence was never loaded ("No zone
+    set") because GET /api/settings needs x-api-key. (commit 01cdaa3)
+  - Balanced parentheses in command_center (build error from glass UI edit).
+  - Fixed malformed Render DATABASE_URL (getaddrinfo ENOTFOUND) — schema then
+    loaded 34/34.
+  - Guided cleanup of accidental duplicate Neon projects.
+
+MARKETING WEBSITE (most recent work):
+  - Built complete multi-page, light, animated site.
+  - Blended neumorphism + glassmorphism; stronger, purposeful scroll animations;
+    a genuinely animated character.
+  - Added the sticky floating Aegis bot (idle tricks, facts, chat, emotions,
+    star ratings, optional feedback).
+  - Fixed the idle speech bubble to appear horizontally beside Aegis (to her
+    left), fully readable — not cramped underneath.
+  - Upgraded Aegis from a rule-based FAQ bot to a REAL AI (Claude) via the
+    server proxy, with the FAQ brain kept as an automatic fallback.
+
+SECURITY POSTURE OF THE BOT (important):
+  - The Anthropic API key lives ONLY on the server; it is never sent to the
+    browser and cannot be stolen from the page.
+  - Aegis answers ONLY from Env Guardian product/business content. It will not
+    reveal passwords, secrets, tokens, API keys, the repository or source code.
+  - It is a Q&A assistant locked by its system prompt: it CANNOT write/run code,
+    execute commands, or perform any action on your systems — it only returns
+    text replies about the product.
+  - Guardrails are enforced twice: server system prompt + client-side pre-check.
+
+
+===============================================================================
+ HOW TO ACTIVATE / DEPLOY
+===============================================================================
+  - Backend: deploy /server on Render, set env vars (DATABASE_URL, JWT_SECRET,
+    API_KEY, ADMIN_PASSWORD, and optionally LLM_API_KEY + CORS_ORIGINS).
+  - Website: deploy /website folder to Netlify/Vercel/Pages/Render (static).
+    To make Aegis a real LLM: set LLM_API_KEY on the server, add the site domain
+    to CORS_ORIGINS, redeploy. Otherwise it uses the built-in FAQ brain.
+  - App: build the Flutter Android APK from /app and install on devices.
+
+===============================================================================
