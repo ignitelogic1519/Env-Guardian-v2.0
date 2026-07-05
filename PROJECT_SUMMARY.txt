@@ -95,6 +95,10 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        and the VPN all work even with the UI closed.
     GuardianVpnService.kt              Local no-root VpnService — cuts internet
                                        for non-whitelisted apps (Feature B).
+                                       START_NOT_STICKY + establishes only on an
+                                       explicit ACTION_START, so it never resurrects
+                                       itself (block-all) after an app kill — the
+                                       VPN is guaranteed OFF outside the zone.
                                        Re-established whenever the effective
                                        whitelist changes (e.g. an app hits its
                                        daily time limit → it also loses internet);

@@ -25,14 +25,21 @@ class GuardianVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
+        // Only EVER establish on an explicit ACTION_START. A null intent (the system
+        // redelivering a killed service) or an ACTION_STOP must tear down and NOT
+        // resurrect a tunnel. Combined with START_NOT_STICKY below, this guarantees
+        // the VPN cannot come back on by itself after the app is killed — so it can
+        // never linger (block-all) once the user is outside the zone.
+        if (intent == null || intent.action != ACTION_START) {
             stopVpn()
             stopSelf()
             return START_NOT_STICKY
         }
-        val wl = intent?.getStringArrayListExtra(EXTRA_WHITELIST) ?: arrayListOf()
+        val wl = intent.getStringArrayListExtra(EXTRA_WHITELIST) ?: arrayListOf()
         startVpn(wl)
-        return START_STICKY
+        // NOT sticky: if Android kills us, stay dead until the in-zone reconciler
+        // deliberately starts us again. Never auto-restart with no zone check.
+        return START_NOT_STICKY
     }
 
     private fun startVpn(whitelist: List<String>) {

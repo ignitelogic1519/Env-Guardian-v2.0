@@ -36,6 +36,16 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   first (a cached fix that stayed "inside the zone" after leaving and ignored a
   changed mock location), so the Network Guard VPN never turned off in the safe
   zone. Now takes a FRESH `getCurrentPosition()` fix first, cached only as fallback.
+- Fixed the Network Guard VPN staying ON (internet dead) outside the zone even
+  though the notification correctly flipped to "Safe Zone":
+  - `GuardianVpnService` was `START_STICKY` and re-established a **block-all** tunnel
+    on the system's null-intent restart → the VPN resurrected itself after any app
+    kill, with no zone check. Now `START_NOT_STICKY`, and it only establishes on an
+    explicit `ACTION_START` (null/STOP intents tear down and never resurrect).
+  - The native reconciler only issued the stop `if (running == true)`; a process
+    kill resets that in-memory flag to false while a tunnel is still up, so the stop
+    was skipped. Now, whenever the user is outside the zone, it calls `stopService`
+    **unconditionally** every 5s (idempotent) — the VPN is guaranteed off outside.
 
 ### UI
 - **Neumorphism + glassmorphism** look: animated aurora gradient background,
