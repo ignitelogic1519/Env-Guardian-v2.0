@@ -1,15 +1,20 @@
 package com.example.env_guardian
 
 import android.accessibilityservice.AccessibilityService
+import android.app.usage.UsageStatsManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.view.accessibility.AccessibilityEvent
 import android.os.Handler
 import android.os.Looper
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
 
 class AppBlockerService : AccessibilityService() {
 
@@ -46,7 +51,12 @@ class AppBlockerService : AccessibilityService() {
                         file.writeText(currentTime)
                     } catch (e: Exception) {}
 
-                    // 3. Network Guard reconciliation. Done natively (not via a Flutter
+                    // 3. Recompute the effective whitelist (base minus time-exhausted
+                    //    apps) natively, so whitelist changes AND per-app time limits
+                    //    take effect even when the Flutter UI is closed.
+                    reconcileWhitelist(prefs)
+
+                    // 4. Network Guard reconciliation. Done natively (not via a Flutter
                     //    method channel) so it works even when the UI is closed — this
                     //    is what turns the VPN OFF the moment the device leaves the zone.
                     reconcileVpn(prefs)
@@ -70,6 +80,73 @@ class AppBlockerService : AccessibilityService() {
         super.onDestroy()
         isAlive = false
         pulseRunnable?.let { pulseHandler?.removeCallbacks(it) }
+    }
+
+    // Recomputes the effective app whitelist ENTIRELY on the native side and stores
+    // it in native_whitelist (read by both this blocker and the VPN reconciler). This
+    // is what makes whitelist changes AND per-app time limits take effect even when
+    // the Flutter UI is closed — the Dart background isolate can't reach the app's
+    // method channel, but this accessibility pulse (main process) reads prefs +
+    // UsageStats directly.
+    //
+    // The base list (global ∪ custom, + emergency apps when locked/non-compliant) is
+    // written by Dart as a plain JSON string 'eg_base_whitelist'. We subtract any
+    // policy app that is disabled or has spent its daily budget (usage read natively),
+    // then persist the result. If the base hasn't been written yet we leave the last
+    // known whitelist untouched (never blanket-block).
+    private fun reconcileWhitelist(prefs: android.content.SharedPreferences) {
+        try {
+            val baseJson = prefs.getString("flutter.eg_base_whitelist", null) ?: return
+            val effective = HashSet<String>()
+            val arr = JSONArray(baseJson)
+            for (i in 0 until arr.length()) effective.add(arr.getString(i))
+
+            // Per-app time limits — only if the feature is enabled for this user.
+            val flagsStr = prefs.getString("flutter.feature_flags", "{}") ?: "{}"
+            val timeLimitsOn = try { JSONObject(flagsStr).optBoolean("app_time_limits", false) } catch (e: Exception) { false }
+            if (timeLimitsOn) {
+                val policiesStr = prefs.getString("flutter.app_policies", "[]") ?: "[]"
+                val policies = try { JSONArray(policiesStr) } catch (e: Exception) { JSONArray() }
+                if (policies.length() > 0) {
+                    val usage = getTodayUsageNative()
+                    for (i in 0 until policies.length()) {
+                        val pol = policies.optJSONObject(i) ?: continue
+                        val pkg = pol.optString("package", "")
+                        if (pkg.isEmpty()) continue
+                        val enabled = pol.optBoolean("enabled", true)
+                        val limit = pol.optLong("daily_limit_ms", 0L)
+                        val used = usage[pkg] ?: 0L
+                        // Disabled app, or spent its daily budget → drop it from the
+                        // whitelist (blocked at the foreground AND cut off by the VPN).
+                        if (!enabled || (limit > 0 && used >= limit)) effective.remove(pkg)
+                    }
+                }
+            }
+
+            prefs.edit().putStringSet("native_whitelist", effective).commit()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Today's per-app foreground time (ms), read directly from UsageStatsManager.
+    // Returns an empty map if Usage Access isn't granted (→ no extra blocks).
+    private fun getTodayUsageNative(): Map<String, Long> {
+        val out = HashMap<String, Long>()
+        try {
+            val usm = applicationContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }
+            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, cal.timeInMillis, System.currentTimeMillis()) ?: return out
+            for (u in stats) {
+                if (u.totalTimeInForeground > 0) out[u.packageName] = (out[u.packageName] ?: 0L) + u.totalTimeInForeground
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return out
     }
 
     // Keeps the Network Guard VPN in sync with the desired state, entirely on the

@@ -87,10 +87,12 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        while the user is on a system settings page
                                        they were sent to (fixes the OEM auto-start
                                        screen closing instantly). Its 5s pulse also
-                                       reconciles the Network Guard VPN natively
-                                       (start on zone entry / stop on exit), so the
-                                       tunnel drops when leaving the zone even with
-                                       the UI closed.
+                                       recomputes the effective whitelist natively
+                                       (base from eg_base_whitelist minus apps that
+                                       hit their per-app time limit, usage read via
+                                       UsageStatsManager) and reconciles the Network
+                                       Guard VPN — so whitelist changes, time limits
+                                       and the VPN all work even with the UI closed.
     GuardianVpnService.kt              Local no-root VpnService — cuts internet
                                        for non-whitelisted apps (Feature B).
                                        Re-established whenever the effective

@@ -170,18 +170,26 @@ void onStart(ServiceInstance service) async {
       };
       if (isLocked || !isCompliant) mergedWhitelist.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
 
-      // ── Per-app time limits ──────────────────────────────────────────────
-      // When the admin has enabled this feature for the user, read today's
-      // per-app usage and block any allowed app that is disabled or has used
-      // up its daily budget. Also report usage so the dashboard can show it.
+      // Publish the RAW base whitelist as a plain JSON string. The native enforcer
+      // (AppBlockerService) reads this + today's usage to compute the effective
+      // whitelist and apply per-app time limits itself — which is the ONLY way it
+      // works while the UI is closed (the method channel below is unreachable from
+      // this background isolate, so it's just a best-effort fast path for when the
+      // UI is open).
+      await prefs.setString('eg_base_whitelist', json.encode(mergedWhitelist.toList()));
+
+      // ── Per-app time limits (foreground fast path + usage reporting) ─────────
+      // When the app is in the foreground this trims the set + reports usage to the
+      // server. In the background isolate the underlying channel call no-ops, which
+      // is fine: the native reconciler above is the source of truth for enforcement.
       if (insideGeofence) {
         await enforceTimeLimits(prefs, empId, mergedWhitelist);
       }
 
       await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": mergedWhitelist.toList()});
-      // The Network Guard VPN is reconciled natively (AppBlockerService), off the
-      // in_restricted_zone flag this loop keeps fresh — so it stops on zone exit
-      // reliably even when the UI is closed. Nothing to do here beyond the whitelist.
+      // The Network Guard VPN + effective whitelist are reconciled natively
+      // (AppBlockerService), off in_restricted_zone + eg_base_whitelist which this
+      // loop keeps fresh — so enforcement and the VPN work even when the UI is closed.
     } catch (e) { debugPrint("Blocker Error: $e"); }
 
     String currentNotif = "";
