@@ -31,10 +31,13 @@ SELECT qr_mode FROM public.system_settings WHERE id = 1;   -- expect 'static'
 | `qr_mode` (DB, not env) | Keep `static` unless you have a live QR display | `'totp'` = rotating QR |
 
 ### 0.3 Build + permissions
-Build from `main` (`flutter pub get && flutter build apk`). On the device grant,
-from the compliance panel: Location (always), GPS, Camera, Notifications, Battery,
-Overlay, **Accessibility**, **Usage Access**, **Notification Access**, **Network
-Guard (VPN consent)**, and open the **Auto-start** helper.
+Build from the feature branch (`flutter pub get && flutter build apk`). On the
+device grant the **7 core** permissions from the "Compliance Required" screen:
+Location (always), GPS, Camera, Notifications, Battery, Overlay, **Accessibility**.
+Then open the **Security Features** panel (⚙/tune icon, top-right of the Command
+Center — available at any time, in or out of the zone) to enable the **optional**
+protections: **Usage Access**, **Notification Access**, **Auto-start** (OEM), and
+**Network Guard (VPN consent)**.
 
 ---
 
@@ -70,13 +73,16 @@ Guard (VPN consent)**, and open the **Auto-start** helper.
 - [ ] Open a non-whitelisted app → kicked to home; logged `[BLOCKED]`.
 - [ ] Open a whitelisted app → allowed; logged `[ALLOWED]`.
 - [ ] **Time limit:** with the feature key on + a limit set, the app is allowed until the daily budget is hit, then blocked.
+- [ ] **Time limit + Network Guard on:** once the app hits its budget it also **loses internet** (not just foreground access) within ~10s.
 
 ## 7. User story: Network Guard (feature B — experimental)
 **Situation:** admin wants non-whitelisted apps to also lose internet in-zone.
-- [ ] Enable "Network Guard" (one-time VPN consent) → VPN key icon appears in-zone.
-- [ ] In-zone, a non-whitelisted app has **no internet**; a whitelisted app still works.
+- [ ] On a **fully compliant** device, open **Security Features** (app-bar) → toggle **Network Guard on** → one-time VPN consent appears and is accepted (this is the fix: consent is reachable after setup, not only on the compliance screen).
+- [ ] Enter the zone → VPN key icon appears; a non-whitelisted app has **no internet**; a whitelisted app still works.
+- [ ] **With the app closed (swiped away):** the guard still starts on zone entry / stops on exit (driven by the background loop — note the device model + Android version, as this depends on background channel access).
+- [ ] Toggle **Network Guard off** in the panel → tunnel stops; internet restored.
 - [ ] Leave the zone → VPN stops; internet restored for all.
-- [ ] Disable the VPN from Settings while in-zone → `vpn_revoked` flag set (tamper).
+- [ ] Disable the VPN from system Settings while in-zone → `vpn_revoked` flag set; the **Security panel shows a tamper warning**, the app-bar icon turns orange, and the heartbeat `compliance_status.vpn_revoked` is **true** in the DB. Re-enabling / a successful re-establish clears it.
 
 ## 8. User story: leaving the zone (clean teardown)
 - [ ] Verification cleared; **timer resets**; VPN off; apps unblocked; "Safe Zone".
@@ -93,6 +99,7 @@ Guard (VPN consent)**, and open the **Auto-start** helper.
 - [ ] Revoke Usage Access → time limits stop (fail-open) + tile turns red.
 - [ ] Revoke Notification Access → pre-scan gate fails open (scanner shown) + tile red.
 - [ ] Force-stop via Settings in-zone → anti-tamper returns to home.
+- [ ] With Network Guard on, disable the VPN on the device → `vpn_revoked` reported to the server (compliance matrix) + tamper warning in the Security panel.
 
 ## 11. User story: reliability across conditions
 - [ ] Reboot → service auto-starts; still monitoring.

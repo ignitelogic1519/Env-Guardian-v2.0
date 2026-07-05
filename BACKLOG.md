@@ -71,12 +71,28 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   → non-whitelisted apps lose internet while active.
 - ✅ MainActivity: prepareVpn (one-time consent) / startVpn(whitelist) / stopVpn /
   isVpnRunning; manifest registers the VpnService.
-- ✅ App: "Network Guard" compliance tile enables it; `_sync` **starts the VPN on
-  zone entry and stops it on exit** (whitelist passed through). `onRevoke` writes a
-  `vpn_revoked` tamper flag.
-- ⚠️ Must be **tested on a real device**. Caveats: one VPN at a time; user can
-  disable it on BYOD (tamper flag set); status-bar key icon; auto-start works while
-  the app is foreground (it's brought forward by feature C on zone entry).
+- ✅ **Enrollable any time:** the "Network Guard" toggle now lives in an
+  always-available **Security Features** panel (app-bar), not only on the
+  compliance-required screen — so VPN consent can be triggered on a fully set-up
+  (compliant) device. On/off toggle with a one-time consent on first enable.
+- ✅ **Shared lifecycle (`reconcileVpn`)**: the VPN is started on zone entry,
+  stopped on exit, and **re-established whenever the effective whitelist changes**.
+  Driven from **both** the foreground `_sync` **and the background loop**, so the
+  guard also works while the UI is closed (the app is kept alive by the
+  always-on foreground service).
+- ✅ **Tied to per-app time limits**: `enforceTimeLimits` now runs in the
+  foreground too, and the effective (time-limit-adjusted) whitelist feeds both the
+  accessibility blocker AND the VPN — so an app that exhausts its daily budget
+  **also loses internet**, not just its foreground access.
+- ✅ **Tamper reporting wired end-to-end**: `onRevoke` writes `vpn_revoked`; the
+  heartbeat compliance matrix now **reports** it, the Security panel shows a
+  warning, and a fresh successful (re)establish clears it.
+- ⚠️ Must still be **tested on a real device**. Caveats: one VPN at a time; user
+  can disable it on BYOD (tamper flag set + reported); status-bar key icon.
+  Cross-engine caveat: `reconcileVpn` reaches the native VPN via the same custom
+  method channel as `updateWhitelistedApps`; if the background isolate can't reach
+  that channel on a given device, the VPN still starts/stops from the foreground —
+  verify background start/stop on target hardware.
 
 ### C. Auto-start / auto-foreground on zone entry  *(in progress)*
 - ✅ **Shipped:** on NEW zone entry (and not yet verified/locked) the background
