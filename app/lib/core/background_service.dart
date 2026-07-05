@@ -179,11 +179,9 @@ void onStart(ServiceInstance service) async {
       }
 
       await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": mergedWhitelist.toList()});
-
-      // Feature B: keep the Network Guard VPN in step with the effective whitelist
-      // even while the UI is closed. mergedWhitelist has already had disabled /
-      // time-exhausted apps removed above, so those apps also lose internet.
-      await reconcileVpn(prefs, mergedWhitelist, insideGeofence);
+      // The Network Guard VPN is reconciled natively (AppBlockerService), off the
+      // in_restricted_zone flag this loop keeps fresh — so it stops on zone exit
+      // reliably even when the UI is closed. Nothing to do here beyond the whitelist.
     } catch (e) { debugPrint("Blocker Error: $e"); }
 
     String currentNotif = "";
@@ -256,39 +254,6 @@ Future<void> enforceTimeLimits(SharedPreferences prefs, String empId, Set<String
     if (empId.isNotEmpty) await CloudSync.sendAppUsage(empId, usage);
   } catch (_) {
     // Usage access not granted yet, or platform error — fail open (no extra blocks).
-  }
-}
-
-// Feature B — Network Guard lifecycle (shared by the background loop and the
-// foreground Command Center so behaviour is identical whether the UI is open or
-// not). Starts the black-hole VPN on zone entry, stops it on exit, and — crucially
-// — re-establishes it whenever [whitelist] changes (e.g. an app hits its daily
-// time limit and is dropped), so that app immediately loses internet.
-//
-// [whitelist] must already be the EFFECTIVE allow-list (merged whitelist minus
-// disabled / over-budget apps). Only runs when the user has opted in via the
-// "Network Guard" toggle (vpn_enabled). All native calls are best-effort.
-Future<void> reconcileVpn(SharedPreferences prefs, Set<String> whitelist, bool insideGeofence) async {
-  final bool enabled = prefs.getBool('vpn_enabled') ?? false;
-  bool running = false;
-  try { running = (await platformBlocker.invokeMethod('isVpnRunning')) == true; } catch (_) {}
-
-  if (enabled && insideGeofence) {
-    final List<String> wl = whitelist.toList()..sort();
-    final String sig = wl.join(',');
-    // (Re)establish when not running or when the effective allow-list changed.
-    if (!running || sig != (prefs.getString('vpn_last_wl') ?? '__none__')) {
-      try {
-        await platformBlocker.invokeMethod('startVpn', {"whitelist": wl});
-        await prefs.setString('vpn_last_wl', sig);
-        // A fresh, successful (re)establish means the tunnel is active again, so
-        // clear any stale tamper flag left by a previous manual disable.
-        await prefs.setBool('vpn_revoked', false);
-      } catch (_) {}
-    }
-  } else {
-    if (running) { try { await platformBlocker.invokeMethod('stopVpn'); } catch (_) {} }
-    await prefs.remove('vpn_last_wl');
   }
 }
 

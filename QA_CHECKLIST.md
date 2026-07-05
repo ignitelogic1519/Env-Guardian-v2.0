@@ -86,8 +86,8 @@ no way for the user to opt out from inside the app.
 - [ ] **Consent is one-time at setup** (step 6) — after sealing, entering the zone must **not** pop the VPN dialog again.
 - [ ] Enter the zone → guard **auto-activates with no prompt**; VPN key icon appears; a non-whitelisted app has **no internet**; a whitelisted app still works.
 - [ ] Open **Security Features** (app-bar ⚙) → Network Guard shows **"Active … cannot be turned off in-app"** with a lock icon (no on/off switch).
-- [ ] **With the app closed (swiped away):** the guard still auto-starts on zone entry / stops on exit (background loop — record device model + Android version, as this depends on background channel access).
-- [ ] Leave the zone → VPN stops; internet restored for all.
+- [ ] **With the app closed (swiped away):** the guard still auto-starts on zone entry / stops on exit within ~5s (native reconciler in the accessibility service — no longer depends on the Flutter background isolate; record device model + Android version).
+- [ ] Leave the zone (even with the app CLOSED) → VPN stops within ~5s; internet restored for all (native reconciler).
 - [ ] **Tamper:** disable the VPN from system Settings while in-zone → within ~10s it **re-establishes automatically**; `vpn_revoked` briefly reported (heartbeat `compliance_status.vpn_revoked=true`), Security panel shows the tamper warning + app-bar icon turns orange, then clears on the successful re-establish.
 - [ ] **BYOD note (expected, not a bug):** the OS still *lets* you disable the VPN — verify the app's response is auto-recover + report, not a hard block.
 

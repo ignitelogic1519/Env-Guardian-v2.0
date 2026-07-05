@@ -50,12 +50,12 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        fetch whitelists & time-limit policies).
     core/
       background_service.dart          Foreground service loop: geofence check,
-                                       enforcement trigger, heartbeat. Also owns
-                                       the shared enforceTimeLimits() and
-                                       reconcileVpn() helpers (used by the loop AND
-                                       the Command Center) so per-app time limits
-                                       and the Network Guard VPN behave identically
-                                       whether the UI is open or closed.
+                                       enforcement trigger, heartbeat, per-app
+                                       time limits (enforceTimeLimits). It writes
+                                       in_restricted_zone; the Network Guard VPN
+                                       itself is reconciled NATIVELY (see
+                                       AppBlockerService) so it stops on zone exit
+                                       even when the UI is closed.
       platform.dart                    Method-channel bridge to native Kotlin.
       theme/glass.dart                 Glassmorphism UI helpers.
       theme/neumorphic.dart            Neumorphism UI helpers.
@@ -86,7 +86,11 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        (enforcement_grace_until) so it stands down
                                        while the user is on a system settings page
                                        they were sent to (fixes the OEM auto-start
-                                       screen closing instantly).
+                                       screen closing instantly). Its 5s pulse also
+                                       reconciles the Network Guard VPN natively
+                                       (start on zone entry / stop on exit), so the
+                                       tunnel drops when leaving the zone even with
+                                       the UI closed.
     GuardianVpnService.kt              Local no-root VpnService — cuts internet
                                        for non-whitelisted apps (Feature B).
                                        Re-established whenever the effective
@@ -230,9 +234,10 @@ CORE PRODUCT & FEATURES (A–I backlog, all shipped):
     seal), then the guard AUTO-ACTIVATES on every zone entry with no further prompt.
     There is deliberately no in-app "off" switch; if the user disables the VPN in
     system settings it re-establishes automatically in-zone and the tamper is
-    reported (vpn_revoked in the heartbeat). Lifecycle is driven from the background
-    loop (works with the UI closed) and tied to per-app time limits (over-budget
-    apps lose internet too). BYOD limit: Android always allows disabling a VPN from
+    reported (vpn_revoked in the heartbeat). Lifecycle is reconciled NATIVELY in the
+    accessibility service (starts on entry, STOPS on exit even with the UI closed)
+    and tied to per-app time limits (over-budget apps lose internet too). BYOD limit:
+    Android always allows disabling a VPN from
     system settings — enforcement is deterrent-grade (auto-recover + report), not an
     OS-level lock (that would need Device Owner, which this product avoids).
   - Feature C: auto-foreground prompt on zone entry.

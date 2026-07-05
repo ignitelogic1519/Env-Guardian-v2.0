@@ -81,13 +81,17 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   interim design put an on/off toggle in that panel; superseded by always-on.)
 - ⚠️ **BYOD honesty:** Android always lets the user disable a VPN from system
   settings; we cannot hard-lock it without Device Owner (out of scope). Enforcement
-  is **deterrent-grade**: reconcileVpn re-establishes it automatically while in-zone
-  and `vpn_revoked` is reported — not an OS-level block.
-- ✅ **Shared lifecycle (`reconcileVpn`)**: the VPN is started on zone entry,
-  stopped on exit, and **re-established whenever the effective whitelist changes**.
-  Driven from **both** the foreground `_sync` **and the background loop**, so the
-  guard also works while the UI is closed (the app is kept alive by the
-  always-on foreground service).
+  is **deterrent-grade**: the native reconciler re-establishes it automatically
+  while in-zone and `vpn_revoked` is reported — not an OS-level block.
+- ✅ **Native lifecycle (reliable stop-on-exit)**: the VPN is reconciled **entirely
+  on the native side** — a ~5s loop in `AppBlockerService` (the always-alive
+  accessibility service, running in the main app process) reads `in_restricted_zone`
+  + `vpn_enabled` + the native whitelist and starts the tunnel on zone entry,
+  re-establishes it when the whitelist changes, and **stops it the moment the device
+  leaves the zone — even when the Flutter UI is closed.** This replaced the earlier
+  Dart `reconcileVpn`, which could not stop the tunnel from the background isolate
+  (the VPN method channel isn't reachable there) — the bug where the VPN stayed on
+  after returning to the safe zone.
 - ✅ **Tied to per-app time limits**: `enforceTimeLimits` now runs in the
   foreground too, and the effective (time-limit-adjusted) whitelist feeds both the
   accessibility blocker AND the VPN — so an app that exhausts its daily budget
@@ -96,11 +100,11 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   heartbeat compliance matrix now **reports** it, the Security panel shows a
   warning, and a fresh successful (re)establish clears it.
 - ⚠️ Must still be **tested on a real device**. Caveats: one VPN at a time; user
-  can disable it on BYOD (tamper flag set + reported); status-bar key icon.
-  Cross-engine caveat: `reconcileVpn` reaches the native VPN via the same custom
-  method channel as `updateWhitelistedApps`; if the background isolate can't reach
-  that channel on a given device, the VPN still starts/stops from the foreground —
-  verify background start/stop on target hardware.
+  can disable it on BYOD (tamper flag set + reported); status-bar key icon. Because
+  the reconciler now lives in the native accessibility service, start/stop no longer
+  depends on the Flutter background isolate — but the effective whitelist it uses is
+  still refreshed via `updateWhitelistedApps`, so time-limit-driven network cuts made
+  while the UI is fully closed depend on that channel; verify on target hardware.
 
 ### C. Auto-start / auto-foreground on zone entry  *(in progress)*
 - ✅ **Shipped:** on NEW zone entry (and not yet verified/locked) the background

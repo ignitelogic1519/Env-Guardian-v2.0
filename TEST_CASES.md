@@ -117,7 +117,8 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | VPN-02 | 🟢 | In-zone with the guard active | Non-whitelisted app has **no internet**; whitelisted app + Env Guardian keep internet |
 | VPN-03 | 🟢 | Leave the zone | Tunnel stops; internet restored for all apps |
 | VPN-04 | 🟢 | Toggle a per-device whitelist app while in-zone (Armory) | VPN re-establishes with the new bypass set within ~10s (whitelist change reflected) |
-| VPN-05 | 🟢 | Close the app (swipe away), then enter/leave the zone | Guard still auto-starts/stops via the background loop (record device model + Android version — depends on background channel access) |
+| VPN-05 | 🟢 | Close the app (swipe away), then enter the zone | Guard auto-starts within ~5s (native reconciler in the accessibility service) |
+| VPN-05b | 🟢 | **App closed**, walk from restricted zone → safe zone | Tunnel **stops within ~5s of leaving** and internet is restored — no longer stays on after returning to safe zone (regression fix) |
 | VPN-06 | 🟢 | Open **Security Features** (app-bar ⚙) | Network Guard shows **"Active … cannot be turned off in-app"** + lock icon; **no on/off switch** |
 | VPN-07 | 🔴 | Disable the VPN in system Settings while in-zone | Within ~10s it **re-establishes automatically**; `vpn_revoked` briefly reported (`compliance_status.vpn_revoked=true`); tamper warning shown, then cleared on re-establish |
 | VPN-08 | 🔴 | Revoke VPN consent entirely (system Settings) while in-zone | Guard can't re-establish silently; Security panel shows **Enable** to re-grant the one-time consent |

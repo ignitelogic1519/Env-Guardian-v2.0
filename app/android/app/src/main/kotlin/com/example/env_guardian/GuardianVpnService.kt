@@ -51,6 +51,14 @@ class GuardianVpnService : VpnService() {
             }
             iface = b.establish()
             running = iface != null
+            // A successful (re)establish means the tunnel is active again, so clear any
+            // stale tamper flag left by a previous manual disable (onRevoke set it).
+            if (running) {
+                try {
+                    getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+                        .edit().putBoolean("flutter.vpn_revoked", false).commit()
+                } catch (e: Exception) {}
+            }
             // No reader thread: packets routed here are simply dropped → no internet
             // for non-whitelisted apps until stopVpn().
         } catch (e: Exception) {
