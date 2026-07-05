@@ -71,10 +71,16 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   → non-whitelisted apps lose internet while active.
 - ✅ MainActivity: prepareVpn (one-time consent) / startVpn(whitelist) / stopVpn /
   isVpnRunning; manifest registers the VpnService.
-- ✅ **Enrollable any time:** the "Network Guard" toggle now lives in an
-  always-available **Security Features** panel (app-bar), not only on the
-  compliance-required screen — so VPN consent can be triggered on a fully set-up
-  (compliant) device. On/off toggle with a one-time consent on first enable.
+- ✅ **Always-on by policy:** the one-time VPN consent is captured during
+  **first-run setup** (step 6, **required to seal** the device), and the guard is
+  marked permanently enabled. It then **auto-activates on every zone entry with no
+  further prompt**. There is **no in-app "off"** switch — the Security Features
+  panel only shows status and offers **re-grant** if consent was lost. (Earlier
+  interim design put an on/off toggle in that panel; superseded by always-on.)
+- ⚠️ **BYOD honesty:** Android always lets the user disable a VPN from system
+  settings; we cannot hard-lock it without Device Owner (out of scope). Enforcement
+  is **deterrent-grade**: reconcileVpn re-establishes it automatically while in-zone
+  and `vpn_revoked` is reported — not an OS-level block.
 - ✅ **Shared lifecycle (`reconcileVpn`)**: the VPN is started on zone entry,
   stopped on exit, and **re-established whenever the effective whitelist changes**.
   Driven from **both** the foreground `_sync` **and the background loop**, so the

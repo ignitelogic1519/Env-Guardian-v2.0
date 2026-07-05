@@ -12,7 +12,8 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 
 | ID | Type | Preconditions | Steps | Expected |
 |----|------|---------------|-------|----------|
-| REG-01 | 🟢 | Fresh install, server up | Enter name + ID, grant all permissions, tap "Seal Device & Register" | HTTP 201; device sealed; lands on Command Center; row appears in `agents` |
+| REG-01 | 🟢 | Fresh install, server up | Enter name + ID, grant all permissions **including step 6 Network Guard (VPN) consent**, tap "Seal Device & Register" | HTTP 201; device sealed; lands on Command Center; row appears in `agents` |
+| REG-01b | 🔴 | Fresh install | Grant everything **except** the VPN consent | "Seal Device & Register" stays hidden until VPN consent is granted |
 | REG-02 | 🔴 | Fresh install | Submit with empty name or ID | Cannot seal (button hidden) / server 400 if forced |
 | REG-03 | 🟢 | Device already registered to EMP-A; reinstall app | Register again as **same** EMP-A + same name | Allowed (201); metadata refreshed; binding unchanged |
 | REG-04 | 🔴 | Device already registered to EMP-A | Register with a **different** name/ID | Rejected with 409 + "already registered to another employee" |
@@ -109,13 +110,14 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 
 | ID | Type | Steps | Expected |
 |----|------|-------|----------|
-| VPN-01 | 🟢 | On a **fully compliant** device, open **Security Features** (app-bar ⚙) → toggle **Network Guard on** | One-time VPN consent dialog appears and can be accepted (reachable after setup, not just on the compliance screen) |
-| VPN-02 | 🟢 | Enter the zone with Network Guard on | VPN key icon in status bar; non-whitelisted app has **no internet**; whitelisted app + Env Guardian keep internet |
+| VPN-01 | 🟢 | Consent granted once at setup (step 6). Enter the zone | Guard **auto-activates with NO prompt**; VPN key icon in status bar |
+| VPN-02 | 🟢 | In-zone with the guard active | Non-whitelisted app has **no internet**; whitelisted app + Env Guardian keep internet |
 | VPN-03 | 🟢 | Leave the zone | Tunnel stops; internet restored for all apps |
 | VPN-04 | 🟢 | Toggle a per-device whitelist app while in-zone (Armory) | VPN re-establishes with the new bypass set within ~10s (whitelist change reflected) |
-| VPN-05 | 🟢 | Close the app (swipe away), then enter/leave the zone | Guard still starts/stops via the background loop (record device model + Android version — depends on background channel access) |
-| VPN-06 | 🔴 | With Network Guard on, disable the VPN in system Settings while in-zone | `vpn_revoked` set; Security panel shows a tamper warning; app-bar icon turns orange; heartbeat `compliance_status.vpn_revoked = true` |
-| VPN-07 | 🟢 | Toggle Network Guard **off** in the Security panel | Tunnel stops immediately; `vpn_enabled=false`; no VPN on next zone entry |
+| VPN-05 | 🟢 | Close the app (swipe away), then enter/leave the zone | Guard still auto-starts/stops via the background loop (record device model + Android version — depends on background channel access) |
+| VPN-06 | 🟢 | Open **Security Features** (app-bar ⚙) | Network Guard shows **"Active … cannot be turned off in-app"** + lock icon; **no on/off switch** |
+| VPN-07 | 🔴 | Disable the VPN in system Settings while in-zone | Within ~10s it **re-establishes automatically**; `vpn_revoked` briefly reported (`compliance_status.vpn_revoked=true`); tamper warning shown, then cleared on re-establish |
+| VPN-08 | 🔴 | Revoke VPN consent entirely (system Settings) while in-zone | Guard can't re-establish silently; Security panel shows **Enable** to re-grant the one-time consent |
 
 ## 11. UI / UX
 

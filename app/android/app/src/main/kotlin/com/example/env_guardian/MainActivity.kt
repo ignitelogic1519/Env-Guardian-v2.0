@@ -90,6 +90,12 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                // True if the one-time VPN consent has already been granted (prepare
+                // returns null). Lets the setup screen show a granted/not-granted tile
+                // WITHOUT popping the system dialog.
+                "hasVpnConsent" -> {
+                    result.success(VpnService.prepare(this) == null)
+                }
                 "startVpn" -> {
                     val wl = call.argument<List<String>>("whitelist") ?: listOf()
                     val i = Intent(this, GuardianVpnService::class.java)

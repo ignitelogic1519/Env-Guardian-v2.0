@@ -60,13 +60,17 @@ code plus native Kotlin services for the actual OS-level enforcement.
       theme/glass.dart                 Glassmorphism UI helpers.
       theme/neumorphic.dart            Neumorphism UI helpers.
     features/
-      onboarding/admin_setup_screen.dart   First-run device registration.
+      onboarding/admin_setup_screen.dart   First-run device registration. Now
+                                       also captures the ONE-TIME Network Guard
+                                       (VPN) consent as a required setup step, so
+                                       the guard can auto-activate in the zone
+                                       forever after without another prompt.
       command_center/command_center_screen.dart  Main dashboard/home screen.
-                                       App-bar "Security Features" panel toggles
+                                       App-bar "Security Features" panel manages
                                        the optional protections (Usage Access,
-                                       Notification Access, OEM Auto-start, Network
-                                       Guard) at any time — the VPN consent is no
-                                       longer buried in the compliance screen.
+                                       Notification Access, OEM Auto-start) at any
+                                       time and shows the always-on Network Guard
+                                       status (re-grant only; no in-app disable).
       map/map_tab.dart                 Shows restricted zone + device position,
                                        Inside/Outside badge.
       armory/armory_tab.dart           App whitelist / controls view.
@@ -214,11 +218,16 @@ CORE PRODUCT & FEATURES (A–I backlog, all shipped):
   - Map: always show restricted zone; frame zone + device with Inside/Outside
     badge.
   - Feature A: pre-scan clean-state gate (Notification Access).
-  - Feature B: VPN network guard (block non-whitelisted apps' internet). Now
-    enrollable from an always-available "Security Features" panel (app-bar), its
-    lifecycle driven from the background loop (works with the UI closed), tied to
-    per-app time limits (over-budget apps lose internet), and its onRevoke tamper
-    flag (vpn_revoked) reported in the heartbeat compliance matrix.
+  - Feature B: VPN network guard (block non-whitelisted apps' internet). ALWAYS-ON
+    by policy: the one-time consent is captured during first-run setup (required to
+    seal), then the guard AUTO-ACTIVATES on every zone entry with no further prompt.
+    There is deliberately no in-app "off" switch; if the user disables the VPN in
+    system settings it re-establishes automatically in-zone and the tamper is
+    reported (vpn_revoked in the heartbeat). Lifecycle is driven from the background
+    loop (works with the UI closed) and tied to per-app time limits (over-budget
+    apps lose internet too). BYOD limit: Android always allows disabling a VPN from
+    system settings — enforcement is deterrent-grade (auto-recover + report), not an
+    OS-level lock (that would need Device Owner, which this product avoids).
   - Feature C: auto-foreground prompt on zone entry.
   - Feature E: OEM auto-start helper + docs.
   - Feature F: per-device auth tokens (staged, opt-in enforcement).
