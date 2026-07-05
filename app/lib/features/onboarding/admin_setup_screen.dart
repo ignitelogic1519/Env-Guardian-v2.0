@@ -17,6 +17,7 @@ import '../command_center/command_center_screen.dart';
 class AdminSetupScreen extends StatefulWidget { const AdminSetupScreen({super.key}); @override State<AdminSetupScreen> createState() => _AdminSetupScreenState(); }
 class _AdminSetupScreenState extends State<AdminSetupScreen> {
   bool _nOk = false, _fOk = false, _bOk = false, _oOk = false, _cOk = false, _aOk = false, _vpnOk = false;
+  bool _usageOk = false, _notifOk = false, _autoStartAck = false; // now-mandatory special-access grants
   final TextEditingController _nameCtrl = TextEditingController(), _empIdCtrl = TextEditingController(); Timer? _setupTimer;
 
   @override void initState() {
@@ -48,6 +49,18 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     } catch (e) {
       debugPrint("VPN consent check failed: $e");
     }
+    // Usage Access + Notification Access are now mandatory. Poll + persist so the
+    // rest of the app (incl. the background loop) sees the granted state.
+    try {
+      final bool ua = await platformBlocker.invokeMethod('hasUsageAccess');
+      final bool na = await platformBlocker.invokeMethod('hasNotificationAccess');
+      final p = await SharedPreferences.getInstance();
+      await p.setBool('usage_ok', ua);
+      await p.setBool('notif_access_ok', na);
+      if (mounted) setState(() { _usageOk = ua; _notifOk = na; });
+    } catch (e) {
+      debugPrint("Special-access check failed: $e");
+    }
   }
 
   // One-time VPN consent. Launches the system dialog; the periodic gate check
@@ -57,6 +70,15 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     _checkNativeGates();
   }
 
+  // Arms a short grace window so the enforcer stands down while the user is on a
+  // system settings screen (otherwise the anti-tamper shield can bounce them out).
+  Future<void> _armSettingsGrace() async { final p = await SharedPreferences.getInstance(); await p.setInt('enforcement_grace_until', DateTime.now().millisecondsSinceEpoch + 45000); }
+  Future<void> _openAccessibility() async { await _armSettingsGrace(); await platformBlocker.invokeMethod('openAccessibilitySettings'); }
+  Future<void> _reqUsage() async { await _armSettingsGrace(); try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _checkNativeGates(); }
+  Future<void> _reqNotifAccess() async { await _armSettingsGrace(); try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _checkNativeGates(); }
+  // Auto-start has no queryable state; tapping records an acknowledgement.
+  Future<void> _reqAutostart() async { await _armSettingsGrace(); final p = await SharedPreferences.getInstance(); await p.setBool('autostart_ack', true); if (mounted) setState(() => _autoStartAck = true); try { await platformBlocker.invokeMethod('openAutoStartSettings'); } catch (_) {} }
+
   Future<void> _reqN() async { final s = await Permission.notification.request(); setState(() => _nOk = s.isGranted); }
   Future<void> _reqF() async { final s = await Permission.location.request(); setState(() => _fOk = s.isGranted); }
   Future<void> _reqB() async { if (!_fOk) return; final s = await Permission.locationAlways.request(); if (s.isGranted) await Permission.ignoreBatteryOptimizations.request(); setState(() => _bOk = s.isGranted); }
@@ -64,7 +86,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
   Future<void> _reqC() async { final s = await Permission.camera.request(); setState(() => _cOk = s.isGranted); }
 
   @override Widget build(BuildContext context) {
-    bool canSeal = _nOk && _fOk && _bOk && _oOk && _cOk && _aOk && _vpnOk && _nameCtrl.text.trim().isNotEmpty && _empIdCtrl.text.trim().isNotEmpty;
+    bool canSeal = _nOk && _fOk && _bOk && _oOk && _cOk && _aOk && _vpnOk && _usageOk && _notifOk && _autoStartAck && _nameCtrl.text.trim().isNotEmpty && _empIdCtrl.text.trim().isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text("Sentinel Initiation"), centerTitle: true),
       body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: FadeInUp(child: GlassCard(padding: const EdgeInsets.all(24), child: Column(children: [
@@ -72,8 +94,11 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
         TextField(controller: _nameCtrl, decoration: InputDecoration(labelText: "Employee Name", prefixIcon: const Icon(Icons.person), filled: true, fillColor: Colors.grey[900], border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), const SizedBox(height: 15),
         TextField(controller: _empIdCtrl, decoration: InputDecoration(labelText: "Employee ID", prefixIcon: const Icon(Icons.badge), filled: true, fillColor: Colors.grey[900], border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), const SizedBox(height: 30),
         _permTile("0. Notifications", _nOk, _reqN), _permTile("1. Location", _fOk, _reqF), _permTile("2. Background & Battery", _bOk, _reqB), _permTile("3. System Overlay", _oOk, _reqO), _permTile("4. Camera", _cOk, _reqC),
-        ListTile(title: const Text("5. Accessibility Enforcer"), trailing: Icon(_aOk ? Icons.check_circle : Icons.open_in_new, color: _aOk ? Colors.green : Colors.orangeAccent), onTap: () => platformBlocker.invokeMethod('openAccessibilitySettings')),
-        ListTile(title: const Text("6. Network Guard (VPN)"), subtitle: const Text("One-time consent — auto-activates in the zone, always on", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_vpnOk ? Icons.check_circle : Icons.open_in_new, color: _vpnOk ? Colors.green : Colors.orangeAccent), onTap: _vpnOk ? null : _reqVpn), const SizedBox(height: 50),
+        ListTile(title: const Text("5. Accessibility Enforcer"), trailing: Icon(_aOk ? Icons.check_circle : Icons.open_in_new, color: _aOk ? Colors.green : Colors.orangeAccent), onTap: _openAccessibility),
+        ListTile(title: const Text("6. Network Guard (VPN)"), subtitle: const Text("One-time consent — auto-activates in the zone, always on", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_vpnOk ? Icons.check_circle : Icons.open_in_new, color: _vpnOk ? Colors.green : Colors.orangeAccent), onTap: _vpnOk ? null : _reqVpn),
+        ListTile(title: const Text("7. Usage Access"), subtitle: const Text("Per-app time limits", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_usageOk ? Icons.check_circle : Icons.open_in_new, color: _usageOk ? Colors.green : Colors.orangeAccent), onTap: _usageOk ? null : _reqUsage),
+        ListTile(title: const Text("8. Notification Access"), subtitle: const Text("Pre-scan app-close gate", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_notifOk ? Icons.check_circle : Icons.open_in_new, color: _notifOk ? Colors.green : Colors.orangeAccent), onTap: _notifOk ? null : _reqNotifAccess),
+        ListTile(title: const Text("9. Auto-start (OEM)"), subtitle: const Text("Keep the monitor alive on aggressive skins", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_autoStartAck ? Icons.check_circle : Icons.open_in_new, color: _autoStartAck ? Colors.green : Colors.orangeAccent), onTap: _autoStartAck ? null : _reqAutostart), const SizedBox(height: 50),
         if (canSeal) ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, minimumSize: const Size(double.infinity, 50)), onPressed: () async {
           final p = await SharedPreferences.getInstance(); final deviceInfo = DeviceInfoPlugin(); String dId = "Unknown ID", dModel = "Unknown Model", androidVersion = "Unknown"; int sdkInt = 0;
           if (Platform.isAndroid) { AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo; dId = androidInfo.id; dModel = "${androidInfo.manufacturer} ${androidInfo.model}"; androidVersion = androidInfo.version.release; sdkInt = androidInfo.version.sdkInt; }

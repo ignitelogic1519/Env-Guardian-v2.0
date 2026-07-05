@@ -32,20 +32,23 @@ SELECT qr_mode FROM public.system_settings WHERE id = 1;   -- expect 'static'
 
 ### 0.3 Build + permissions
 Build from the feature branch (`flutter pub get && flutter build apk`). The
-first-run **Sentinel Initiation** screen now requires **7 grants before you can
-seal**: Notifications, Location, Background/Battery, System Overlay, Camera,
-**Accessibility Enforcer**, and **Network Guard (VPN)** — the VPN consent is a
-one-time step here (accept the Android "Connection request" dialog). After setup,
-the **Security Features** panel (⚙/tune icon, top-right of the Command Center)
-manages the remaining optional protections — **Usage Access**, **Notification
-Access**, **Auto-start** (OEM) — and shows the always-on Network Guard status.
+first-run **Sentinel Initiation** screen now requires **all 10 grants (steps 0–9)
+before you can seal**, every one mandatory:
+0 Notifications · 1 Location · 2 Background/Battery · 3 System Overlay · 4 Camera ·
+5 **Accessibility Enforcer** · 6 **Network Guard (VPN)** one-time consent ·
+7 **Usage Access** · 8 **Notification Access** · 9 **Auto-start (OEM)**.
+Steps 7–9 are special-access screens; **Auto-start (9)** can't be read back by
+Android, so it's satisfied by simply **opening it once** (acknowledgement). After
+setup, the **Security Features** panel (⚙/tune icon) mirrors 7–9 for re-check and
+shows the always-on Network Guard status.
 
 ---
 
 ## 1. User story: new employee onboarding (fresh device)
 **Situation:** brand-new install, employee sets up their phone.
-- [ ] Enter name + ID, grant every permission **including the one-time Network Guard (VPN) consent** (step 6) → only then does "Seal Device & Register" appear → lands on Command Center.
-- [ ] Confirm the seal button stays hidden until the VPN consent (and all others) are granted.
+- [ ] Enter name + ID, grant **all steps 0–9** (incl. VPN consent, Usage Access, Notification Access, and opening Auto-start once) → only then does "Seal Device & Register" appear → lands on Command Center.
+- [ ] Confirm the seal button stays hidden until **every** step 0–9 is satisfied.
+- [ ] **Auto-start (step 9):** tapping it opens the OEM/settings screen and it **stays open** (does not close instantly) — the grace window fix. The tile turns green after you've opened it once.
 - [ ] `agents` row created with `android_version`, `sdk_int`, and a non-null `device_token`.
 - [ ] Heartbeat updates `last_pulse`/location; device shows **online** in DB.
 
@@ -100,9 +103,9 @@ no way for the user to opt out from inside the app.
 
 ## 10. User story: tamper attempts (all should be detected)
 - [ ] Disable Accessibility → "Enforcer offline" + compliance fail.
-- [ ] Revoke Usage Access → time limits stop (fail-open) + tile turns red.
-- [ ] Revoke Notification Access → pre-scan gate fails open (scanner shown) + tile red.
-- [ ] Force-stop via Settings in-zone → anti-tamper returns to home.
+- [ ] Revoke **Usage Access** → **compliance fails** (now mandatory); "Compliance Required" lists it red.
+- [ ] Revoke **Notification Access** → **compliance fails** (now mandatory); listed red.
+- [ ] Force-stop via Settings in-zone → anti-tamper returns to home. **But** if you reach Settings by tapping a compliance tile, the ~45s grace window lets you stay long enough to toggle the setting (it should NOT bounce you out).
 - [ ] With Network Guard on, disable the VPN on the device → `vpn_revoked` reported to the server (compliance matrix) + tamper warning in the Security panel.
 
 ## 11. User story: reliability across conditions

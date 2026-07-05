@@ -82,7 +82,7 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | TL-02 | 🟢 | Flag on; YouTube limit 30 min; use < 30 min | YouTube allowed |
 | TL-03 | 🟢 | Continue until usage ≥ limit | YouTube becomes blocked (kicked to home) |
 | TL-04 | 🟢 | Policy with `enabled=false` for an app | That app always blocked in-zone |
-| TL-05 | 🔴 | Revoke "Usage Access" permission | Limits can't be measured → fails open (no extra blocks); Usage Access tile shows red |
+| TL-05 | 🔴 | Revoke "Usage Access" permission | **Compliance fails** (Usage Access is now mandatory); "Compliance Required" screen lists it red until re-granted |
 | TL-06 | 🟢 | After some usage, check DB | `app_usage` rows recorded for the device/date |
 | TL-07 | 🟢 | Network Guard ON + a time-limited app hits its budget in-zone | App loses **internet** too (dropped from the VPN bypass list), within ~10s of the limit being reached |
 
@@ -91,6 +91,9 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | ID | Type | Steps | Expected |
 |----|------|-------|----------|
 | CMP-01 | 🔴 | Revoke a permission (e.g. notifications) | Compliance fails; "Compliance required" screen lists it |
+| CMP-02 | 🟢 | Compliance screen shows all mandatory tiles | Lists Location, GPS, Camera, Enforcer, Notifications, Battery, Overlay, **Usage Access, Notification Access, Auto-start** — device is not compliant until all are green |
+| CMP-03 | 🟢 | Tap **Auto-start / keep alive (OEM)** on the compliance screen | The OEM/settings screen **opens and stays open** (grace window); returning, the tile is green (acknowledged) |
+| CMP-04 | 🔴 | In-zone, tap a compliance tile that opens Settings | You are NOT bounced back home for ~45s (grace window) — enough time to toggle the setting |
 | LCK-01 | ⚙️ | Set `admin_lock=true` (DB) | Device shows **Admin Lock** frozen screen |
 | LCK-02 | 🟢 | Trigger auto-lock (time anomaly in-zone) | **Auto-Lock** screen; unlock field shown |
 | LCK-03 | 🟢 | Enter correct admin password on auto-lock | Device unfreezes; `auto_lock` cleared |

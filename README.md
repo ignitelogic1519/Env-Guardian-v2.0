@@ -132,11 +132,11 @@ marked experimental until verified on real hardware.
 
 | ID | Feature | Status |
 |----|---------|--------|
-| A | Pre-scan clean-state gate (close running apps before QR) | ✅ Shipped (Notification Access; soft gate) |
+| A | Pre-scan clean-state gate (close running apps before QR) | ✅ Shipped (Notification Access — **now mandatory** for compliance) |
 | B | VPN per-app network control (block internet in-zone) | ✅ Shipped — **always-on**: one-time consent at setup, auto-activates in-zone, no in-app disable, background-managed, time-limit-aware, tamper-reported (**experimental, test on device**) |
 | C | Auto-foreground on zone entry | ✅ Shipped (full-screen prompt; geofence-wake = future) |
 | D | Admin dashboard (web) | ⏸ Deferred — admin is DB-driven ([`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)) |
-| E | OEM background reliability | ✅ Auto-start helper shipped (watchdog = future) |
+| E | OEM background reliability | ✅ Auto-start helper shipped — **now a mandatory acknowledgement**; opens via a grace window so the enforcer doesn't bounce you out (watchdog = future) |
 | F | Per-device auth tokens | ✅ Shipped — issued now; enforce via `ENFORCE_DEVICE_TOKEN=true` |
 | G | Rotating (TOTP) QR | ✅ Shipped, opt-in (`qr_mode='totp'`; needs a live display) |
 | H | Production app id | ✅ `com.envguardian.mdm` (distribution = direct/private APK) |
@@ -152,10 +152,15 @@ marked experimental until verified on real hardware.
 >   system settings it re-establishes automatically in-zone and the tamper
 >   (`vpn_revoked`) is reported. *(BYOD limit: Android always permits disabling a
 >   VPN in system settings; enforcement is deterrent-grade, not an OS-level lock.)*
-> - The other optional protections (Usage Access, Notification Access, Auto-start)
->   are managed from the **Security Features** panel in the Command Center app bar,
->   reachable at any time. The 7 core permissions appear on the "Compliance
->   Required" screen until granted.
+> - **Usage Access, Notification Access and OEM Auto-start are now MANDATORY** for
+>   compliance (previously optional). They are required setup steps and also appear
+>   on the "Compliance Required" screen until satisfied. Auto-start has no
+>   queryable state on Android, so it is satisfied by a one-time **acknowledgement**
+>   (the user visits the OEM screen); the others are read back directly.
+> - **Settings grace window:** tapping a compliance tile that opens a system
+>   settings page arms a ~45s window during which the accessibility enforcer stands
+>   down — so its anti-tamper shield no longer bounces the user out of the very
+>   settings screen (e.g. OEM auto-start / app details) they were sent to.
 
 ---
 
