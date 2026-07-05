@@ -100,8 +100,17 @@ void onStart(ServiceInstance service) async {
     double cLat = 0, cLng = 0; bool insideGeofence = false;
     try {
       if (lOk && gpsEnabled) {
-        Position? pos = await Geolocator.getLastKnownPosition();
-        pos ??= await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium).timeout(const Duration(seconds: 3));
+        // Get a FRESH fix first — getLastKnownPosition() returns a cached location
+        // that can still read "inside the zone" long after you've actually left (and
+        // it ignores a changed mock location), which left the VPN stuck on. Only fall
+        // back to the cached fix if a fresh read isn't available in time.
+        Position? pos;
+        try {
+          pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high).timeout(const Duration(seconds: 4));
+        } catch (_) {
+          pos = await Geolocator.getLastKnownPosition();
+        }
+        if (pos == null) throw Exception('no location fix');
 
         cLat = pos.latitude; cLng = pos.longitude;
         List<Offset> poly = (await CloudSync.getGeofencePolygon()).map((p) => Offset((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble())).toList();

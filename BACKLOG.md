@@ -32,6 +32,10 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 ### Bug fixes
 - Fixed settings sync (missing API-key header) so the geofence / global whitelist /
   admin password / QR secret actually load on the device
+- Fixed stale zone detection: the background loop read `getLastKnownPosition()`
+  first (a cached fix that stayed "inside the zone" after leaving and ignored a
+  changed mock location), so the Network Guard VPN never turned off in the safe
+  zone. Now takes a FRESH `getCurrentPosition()` fix first, cached only as fallback.
 
 ### UI
 - **Neumorphism + glassmorphism** look: animated aurora gradient background,
