@@ -91,6 +91,9 @@ env-guardian-v2.0/
   (`agents.feature_flags`).
 - The app measures real usage via the native **UsageStatsManager** and blocks an
   app once it's **disabled** or **over budget**; usage is reported back to the server.
+- When **Network Guard** (feature B) is on, an over-budget app also **loses
+  internet** — the effective (time-limit-adjusted) whitelist feeds both the
+  accessibility blocker and the VPN bypass list.
 
 ### 10. Compliance & locking
 - Tracks notification/location/GPS/battery/overlay/camera/accessibility/usage
@@ -130,7 +133,7 @@ marked experimental until verified on real hardware.
 | ID | Feature | Status |
 |----|---------|--------|
 | A | Pre-scan clean-state gate (close running apps before QR) | ✅ Shipped (Notification Access; soft gate) |
-| B | VPN per-app network control (block internet in-zone) | ✅ Shipped — **experimental, test on device** |
+| B | VPN per-app network control (block internet in-zone) | ✅ Shipped — enrollable from the **Security Features** panel, background-managed, time-limit-aware, tamper-reported (**experimental, test on device**) |
 | C | Auto-foreground on zone entry | ✅ Shipped (full-screen prompt; geofence-wake = future) |
 | D | Admin dashboard (web) | ⏸ Deferred — admin is DB-driven ([`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)) |
 | E | OEM background reliability | ✅ Auto-start helper shipped (watchdog = future) |
@@ -139,9 +142,13 @@ marked experimental until verified on real hardware.
 | H | Production app id | ✅ `com.envguardian.mdm` (distribution = direct/private APK) |
 | I | Polish | ⬜ Chronometer notif, Samsung Knox, Wi-Fi enforcement (future) |
 
-> **New permissions introduced by this rollout** (granted from the compliance
-> panel): **Notification Access** (feature A), **VPN consent** (feature B), plus
-> the existing **Usage Access** and **Auto-start** helper (E).
+> **New permissions introduced by this rollout**: **Notification Access**
+> (feature A), **VPN consent** (feature B), plus the existing **Usage Access** and
+> **Auto-start** helper (E). The optional ones (Usage Access, Notification Access,
+> Auto-start, Network Guard/VPN) are toggled from the **Security Features** panel
+> in the Command Center app bar — reachable at any time, so they no longer vanish
+> once the device is compliant. The 7 core permissions still appear on the
+> "Compliance Required" screen until granted.
 
 ---
 

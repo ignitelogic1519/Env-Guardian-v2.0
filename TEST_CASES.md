@@ -83,6 +83,7 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | TL-04 | 🟢 | Policy with `enabled=false` for an app | That app always blocked in-zone |
 | TL-05 | 🔴 | Revoke "Usage Access" permission | Limits can't be measured → fails open (no extra blocks); Usage Access tile shows red |
 | TL-06 | 🟢 | After some usage, check DB | `app_usage` rows recorded for the device/date |
+| TL-07 | 🟢 | Network Guard ON + a time-limited app hits its budget in-zone | App loses **internet** too (dropped from the VPN bypass list), within ~10s of the limit being reached |
 
 ## 9. Compliance & locking
 
@@ -103,6 +104,18 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | SET-01 | ⚙️🟢 | Change `geofence_polygon` (DB) | App reflects new zone within ~10s |
 | SET-02 | ⚙️🟢 | Change `admin_password` (DB) | New password works for unlock (old one doesn't) |
 | SET-03 | 🔴 | Call `GET /api/settings` with **no** API key | Server returns 401 (auth required) |
+
+## 10b. Network Guard (VPN — feature B)
+
+| ID | Type | Steps | Expected |
+|----|------|-------|----------|
+| VPN-01 | 🟢 | On a **fully compliant** device, open **Security Features** (app-bar ⚙) → toggle **Network Guard on** | One-time VPN consent dialog appears and can be accepted (reachable after setup, not just on the compliance screen) |
+| VPN-02 | 🟢 | Enter the zone with Network Guard on | VPN key icon in status bar; non-whitelisted app has **no internet**; whitelisted app + Env Guardian keep internet |
+| VPN-03 | 🟢 | Leave the zone | Tunnel stops; internet restored for all apps |
+| VPN-04 | 🟢 | Toggle a per-device whitelist app while in-zone (Armory) | VPN re-establishes with the new bypass set within ~10s (whitelist change reflected) |
+| VPN-05 | 🟢 | Close the app (swipe away), then enter/leave the zone | Guard still starts/stops via the background loop (record device model + Android version — depends on background channel access) |
+| VPN-06 | 🔴 | With Network Guard on, disable the VPN in system Settings while in-zone | `vpn_revoked` set; Security panel shows a tamper warning; app-bar icon turns orange; heartbeat `compliance_status.vpn_revoked = true` |
+| VPN-07 | 🟢 | Toggle Network Guard **off** in the Security panel | Tunnel stops immediately; `vpn_enabled=false`; no VPN on next zone entry |
 
 ## 11. UI / UX
 

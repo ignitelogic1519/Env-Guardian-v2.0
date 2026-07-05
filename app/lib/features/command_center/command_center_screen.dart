@@ -23,7 +23,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool _insideGeofence = false, _isPhysicallyVerified = false, _enforcerAlive = false, _isInitializing = true, _autoLock = false, _adminLock = false;
   bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true, _usageOk = false;
   bool _notifAccessOk = false; List<String> _runningOffenders = []; // feature A: pre-scan gate
-  bool _vpnEnabled = false; // feature B: network guard
+  bool _vpnEnabled = false, _vpnRevoked = false; // feature B: network guard + tamper flag
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
 
@@ -57,12 +57,25 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Future<void> _reqUsage() async { try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _sync(); }
   Future<void> _reqAutostart() async { try { await platformBlocker.invokeMethod('openAutoStartSettings'); } catch (_) {} }
   Future<void> _reqNotifAccess() async { try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _refreshRunning(); }
-  // Feature B: turn on the Network Guard — triggers the one-time VPN consent.
-  Future<void> _reqVpn() async {
-    try { await platformBlocker.invokeMethod('prepareVpn'); } catch (_) {}
+  // Feature B: enable/disable the Network Guard. Enabling triggers the one-time
+  // VPN consent and clears any stale tamper flag; disabling tears the tunnel down.
+  // The actual start/stop-on-zone lifecycle is driven by reconcileVpn() (shared
+  // with the background loop), so the guard works even when the app is closed.
+  Future<void> _toggleVpn() async {
     final p = await SharedPreferences.getInstance();
-    await p.setBool('vpn_enabled', true);
-    if (mounted) setState(() => _vpnEnabled = true);
+    final bool on = p.getBool('vpn_enabled') ?? false;
+    if (on) {
+      await p.setBool('vpn_enabled', false);
+      try { await platformBlocker.invokeMethod('stopVpn'); } catch (_) {}
+      await p.remove('vpn_last_wl');
+      if (mounted) setState(() => _vpnEnabled = false);
+    } else {
+      try { await platformBlocker.invokeMethod('prepareVpn'); } catch (_) {}
+      await p.setBool('vpn_enabled', true);
+      await p.setBool('vpn_revoked', false);
+      if (mounted) setState(() { _vpnEnabled = true; _vpnRevoked = false; });
+    }
+    _sync();
   }
 
   // Feature A: figure out which non-whitelisted apps are currently running in the
@@ -123,25 +136,24 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     };
     bool aL = p.getBool('auto_lock') ?? false, adL = p.getBool('admin_lock') ?? false;
     bool comp = n && f && g && b && o && c && a;
+    final bool inZoneNow = p.getBool('in_restricted_zone') ?? false;
 
     if (aL || adL || !comp) merged.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
+
+    // Apply per-app time limits here too (not just in the background loop), so a
+    // disabled / over-budget app drops out of BOTH the accessibility whitelist and
+    // the VPN bypass list — losing its internet the moment its budget is spent.
+    if (inZoneNow) { try { await enforceTimeLimits(p, _empId, merged); } catch (_) {} }
+
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
-    // Feature B: Network Guard — while in-zone, cut non-whitelisted apps' internet
-    // (whitelisted apps bypass the tunnel); restore on exit. Requires VPN consent.
-    final bool inZoneNow = p.getBool('in_restricted_zone') ?? false;
-    if (p.getBool('vpn_enabled') ?? false) {
-      try {
-        final bool vpnRunning = (await platformBlocker.invokeMethod('isVpnRunning')) == true;
-        if (inZoneNow && !vpnRunning) {
-          await platformBlocker.invokeMethod('startVpn', {"whitelist": merged.toList()});
-        } else if (!inZoneNow && vpnRunning) {
-          await platformBlocker.invokeMethod('stopVpn');
-        }
-      } catch (_) {}
-    }
+    // Feature B: Network Guard — start/stop/refresh the tunnel to match the
+    // effective (time-limit-aware) whitelist. Non-whitelisted + time-exhausted
+    // apps lose internet in-zone; whitelisted apps bypass. Restored on exit.
+    // Shared with the background loop so it also runs while the app is closed.
+    await reconcileVpn(p, merged, inZoneNow);
 
-    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _verifiedSince = p.getInt('verified_since') ?? 0; });
+    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _verifiedSince = p.getInt('verified_since') ?? 0; });
     _refreshRunning();
   }
 
@@ -155,7 +167,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   @override Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: false,
-      appBar: AppBar(title: const Text("Command Center", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: (_autoLock || _adminLock) ? Colors.red.withOpacity(0.28) : Colors.transparent, actions: [IconButton(icon: const Icon(Icons.account_circle, color: Colors.blueAccent, size: 30), onPressed: () => showModalBottomSheet(context: context, backgroundColor: Colors.transparent, builder: (c) => GlassCard(radius: 30, margin: const EdgeInsets.all(10), padding: const EdgeInsets.all(30), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.badge, size: 60, color: Colors.blueAccent), Text(_empName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)), Text("ID: $_empId", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)), const Divider(color: Colors.white24), Row(children: [const Icon(Icons.phone_android, color: Colors.white54), const SizedBox(width: 15), const Text("Model:"), const Spacer(), Text(_deviceModel)]), Row(children: [const Icon(Icons.fingerprint, color: Colors.white54), const SizedBox(width: 15), const Text("Device ID:"), const Spacer(), Text(_deviceId)])])))), const SizedBox(width: 10)]),
+      appBar: AppBar(title: const Text("Command Center", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: (_autoLock || _adminLock) ? Colors.red.withOpacity(0.28) : Colors.transparent, actions: [IconButton(tooltip: "Security Features", icon: Icon(_vpnRevoked ? Icons.gpp_bad : Icons.tune, color: _vpnRevoked ? Colors.orangeAccent : Colors.blueAccent, size: 28), onPressed: _openSecuritySheet), IconButton(icon: const Icon(Icons.account_circle, color: Colors.blueAccent, size: 30), onPressed: () => showModalBottomSheet(context: context, backgroundColor: Colors.transparent, builder: (c) => GlassCard(radius: 30, margin: const EdgeInsets.all(10), padding: const EdgeInsets.all(30), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.badge, size: 60, color: Colors.blueAccent), Text(_empName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)), Text("ID: $_empId", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)), const Divider(color: Colors.white24), Row(children: [const Icon(Icons.phone_android, color: Colors.white54), const SizedBox(width: 15), const Text("Model:"), const Spacer(), Text(_deviceModel)]), Row(children: [const Icon(Icons.fingerprint, color: Colors.white54), const SizedBox(width: 15), const Text("Device ID:"), const Spacer(), Text(_deviceId)])])))), const SizedBox(width: 10)]),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
         transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
@@ -171,7 +183,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Widget _buildStatusTab() {
     if (_isInitializing) return const Center(child: CircularProgressIndicator());
     if (_adminLock) return _buildFrozenScreen(true); if (_autoLock) return _buildFrozenScreen(false);
-    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage), _shieldTile("Auto-start / keep alive (OEM)", false, _reqAutostart), _shieldTile("Notification Access (app-close gate)", _notifAccessOk, _reqNotifAccess), _shieldTile("Network Guard (block apps' internet)", _vpnEnabled, _reqVpn)]))])));
+    if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO)])), const SizedBox(height: 12), TextButton.icon(onPressed: _openSecuritySheet, icon: const Icon(Icons.tune, size: 18), label: const Text("Optional: Usage Access, Notification Access, Auto-start, Network Guard"), style: TextButton.styleFrom(foregroundColor: Colors.white70))])));
 
     if (!_insideGeofence) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shield, size: 100, color: Colors.greenAccent), Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)), Text("Move to Restricted Zone to authorize.")]));
 
@@ -211,6 +223,40 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
   Widget _buildFrozenScreen(bool isAdmin) => Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.lock_person, size: 100, color: Colors.redAccent), Text(isAdmin ? "ADMIN LOCK" : "AUTO-LOCK", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.redAccent)), Text(isAdmin ? "Banishment Decree issued by Server." : "Time Anomaly Detected.", style: const TextStyle(color: Colors.white70)), const SizedBox(height: 40), if (!isAdmin) ...[TextField(controller: _unlockPassCtrl, obscureText: true, decoration: InputDecoration(labelText: "Admin Unfreeze Password", filled: true, fillColor: Colors.grey[900])), const SizedBox(height: 20), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 60)), icon: const Icon(Icons.key), label: const Text("UNFREEZE"), onPressed: _unfreezeDevice)] else const Icon(Icons.cloud_off, size: 50, color: Colors.white30), const SizedBox(height: 30), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800], foregroundColor: Colors.white), onPressed: () => platformBlocker.invokeMethod('openAccessibilitySettings'), child: const Text("Open Phone Settings"))])));
   Widget _shieldTile(String t, bool ok, VoidCallback tap) => ListTile(dense: true, title: Text(t, style: const TextStyle(color: Colors.white)), trailing: Icon(ok ? Icons.check_circle : Icons.open_in_new, color: ok ? Colors.green : Colors.orangeAccent), onTap: ok ? null : tap);
+
+  // Always-available panel for the optional, feature-specific protections. Unlike
+  // the mandatory compliance tiles (which only appear while a core permission is
+  // missing), this is reachable from the app bar at any time — in or out of the
+  // zone — so Network Guard's VPN consent can actually be triggered after setup.
+  void _openSecuritySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (c) => StatefulBuilder(builder: (c, setSheet) {
+        Future<void> refresh() async { await _sync(); if (mounted) setSheet(() {}); }
+        return GlassCard(radius: 30, margin: const EdgeInsets.all(10), padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [Icon(Icons.tune, color: Colors.blueAccent), SizedBox(width: 10), Text("Security Features", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white))]),
+          const SizedBox(height: 4),
+          const Text("Optional protections. Enable the ones your policy requires — available any time, in or out of the zone.", style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const Divider(color: Colors.white24, height: 24),
+          _shieldTile("Usage Access (per-app time limits)", _usageOk, () async { await _reqUsage(); await refresh(); }),
+          _shieldTile("Notification Access (pre-scan app-close gate)", _notifAccessOk, () async { await _reqNotifAccess(); await refresh(); }),
+          _shieldTile("Auto-start / keep alive (OEM)", false, () async { await _reqAutostart(); await refresh(); }),
+          ListTile(
+            dense: true,
+            leading: Icon(_vpnEnabled ? Icons.vpn_lock : Icons.vpn_key_off, color: _vpnEnabled ? Colors.green : Colors.white54),
+            title: const Text("Network Guard (cut apps' internet in-zone)", style: TextStyle(color: Colors.white)),
+            subtitle: _vpnRevoked
+                ? const Text("⚠ VPN was turned off on the device — tamper reported", style: TextStyle(color: Colors.orangeAccent, fontSize: 11))
+                : Text(_vpnEnabled ? "On — blocks non-whitelisted & time-exhausted apps" : "Off", style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            trailing: Switch(value: _vpnEnabled, activeColor: Colors.green, onChanged: (v) async { await _toggleVpn(); await refresh(); }),
+          ),
+          const SizedBox(height: 8),
+        ]));
+      }),
+    );
+  }
 
   // Feature A: shown instead of the scanner while non-whitelisted apps are running.
   Widget _buildCloseAppsGate() => Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: FadeInUp(child: GlassCard(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [

@@ -39,8 +39,9 @@ lib/
 
 | Area | Purpose |
 |------|---------|
-| `core/background_service.dart` | The 10-second monitor loop: location, compliance, time-limit enforcement, notifications |
-| `core/platform.dart`           | Shared `MethodChannel` to the native Android blocker / usage-stats |
+| `core/background_service.dart` | The 10-second monitor loop: location, compliance, time-limit enforcement, notifications. Hosts the shared `enforceTimeLimits()` + `reconcileVpn()` helpers so per-app time limits and the Network Guard VPN run identically from the loop and the UI |
+| `core/platform.dart`           | Shared `MethodChannel` to the native Android blocker / usage-stats / VPN |
+| `features/command_center/`     | Main tabbed screen + QR auth + zone timer + the app-bar **Security Features** panel (toggles Usage Access, Notification Access, OEM Auto-start, Network Guard at any time) |
 | `features/*`                   | One folder per feature — safe to assign to different developers |
 | `android/`                     | Android project + native `AppBlockerService` (the enforcer) + usage-stats |
 

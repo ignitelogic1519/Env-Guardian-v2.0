@@ -50,13 +50,23 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        fetch whitelists & time-limit policies).
     core/
       background_service.dart          Foreground service loop: geofence check,
-                                       enforcement trigger, heartbeat.
+                                       enforcement trigger, heartbeat. Also owns
+                                       the shared enforceTimeLimits() and
+                                       reconcileVpn() helpers (used by the loop AND
+                                       the Command Center) so per-app time limits
+                                       and the Network Guard VPN behave identically
+                                       whether the UI is open or closed.
       platform.dart                    Method-channel bridge to native Kotlin.
       theme/glass.dart                 Glassmorphism UI helpers.
       theme/neumorphic.dart            Neumorphism UI helpers.
     features/
       onboarding/admin_setup_screen.dart   First-run device registration.
       command_center/command_center_screen.dart  Main dashboard/home screen.
+                                       App-bar "Security Features" panel toggles
+                                       the optional protections (Usage Access,
+                                       Notification Access, OEM Auto-start, Network
+                                       Guard) at any time — the VPN consent is no
+                                       longer buried in the compliance screen.
       map/map_tab.dart                 Shows restricted zone + device position,
                                        Inside/Outside badge.
       armory/armory_tab.dart           App whitelist / controls view.
@@ -68,6 +78,11 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        non-whitelisted foreground apps.
     GuardianVpnService.kt              Local no-root VpnService — cuts internet
                                        for non-whitelisted apps (Feature B).
+                                       Re-established whenever the effective
+                                       whitelist changes (e.g. an app hits its
+                                       daily time limit → it also loses internet);
+                                       onRevoke() sets a vpn_revoked tamper flag
+                                       that the heartbeat now reports.
     GuardianNotifListener.kt           Notification-listener — pre-scan clean-
                                        state gate (Feature A).
     res/xml/accessibility_service_config.xml  Accessibility declaration.
@@ -199,7 +214,11 @@ CORE PRODUCT & FEATURES (A–I backlog, all shipped):
   - Map: always show restricted zone; frame zone + device with Inside/Outside
     badge.
   - Feature A: pre-scan clean-state gate (Notification Access).
-  - Feature B: VPN network guard (block non-whitelisted apps' internet).
+  - Feature B: VPN network guard (block non-whitelisted apps' internet). Now
+    enrollable from an always-available "Security Features" panel (app-bar), its
+    lifecycle driven from the background loop (works with the UI closed), tied to
+    per-app time limits (over-budget apps lose internet), and its onRevoke tamper
+    flag (vpn_revoked) reported in the heartbeat compliance matrix.
   - Feature C: auto-foreground prompt on zone entry.
   - Feature E: OEM auto-start helper + docs.
   - Feature F: per-device auth tokens (staged, opt-in enforcement).
