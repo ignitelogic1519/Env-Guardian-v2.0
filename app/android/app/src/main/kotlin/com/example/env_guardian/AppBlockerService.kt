@@ -176,11 +176,14 @@ class AppBlockerService : AccessibilityService() {
                     applicationContext.startService(i)
                     lastVpnWlSig = sig
                 }
-            } else if (running) {
-                // stopService (rather than startService with ACTION_STOP) so the
-                // teardown isn't subject to Android's background service-start limits —
-                // GuardianVpnService.onDestroy() closes the tunnel. This is what
-                // guarantees the VPN drops when leaving the zone with the UI closed.
+            } else {
+                // Outside the zone (or the guard is off): tear the tunnel down
+                // UNCONDITIONALLY every pulse — do NOT gate on the in-memory `running`
+                // flag, which a process kill can reset to false while a tunnel is still
+                // up (leaving the VPN stuck on with no internet outside the zone).
+                // stopService → GuardianVpnService.onDestroy() closes the interface;
+                // it's a cheap no-op when nothing is running. This is the guarantee
+                // that the VPN is OFF whenever the user is not in the restricted zone.
                 applicationContext.stopService(
                     Intent(applicationContext, GuardianVpnService::class.java)
                 )

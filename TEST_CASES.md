@@ -124,6 +124,8 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | VPN-06 | 🟢 | Open **Security Features** (app-bar ⚙) | Network Guard shows **"Active … cannot be turned off in-app"** + lock icon; **no on/off switch** |
 | VPN-07 | 🔴 | Disable the VPN in system Settings while in-zone | Within ~10s it **re-establishes automatically**; `vpn_revoked` briefly reported (`compliance_status.vpn_revoked=true`); tamper warning shown, then cleared on re-establish |
 | VPN-08 | 🔴 | Revoke VPN consent entirely (system Settings) while in-zone | Guard can't re-establish silently; Security panel shows **Enable** to re-grant the one-time consent |
+| VPN-09 | 🔴 | In-zone with VPN on → **force-stop / let the OS kill the app**, then check outside the zone | VPN does **not** resurrect itself; internet works normally outside (no block-all tunnel; START_NOT_STICKY) |
+| VPN-10 | 🟢 | Leave the zone → notification flips to "Safe Zone" | The **VPN key icon disappears within ~5s** and internet is restored (unconditional stop, not gated on internal state) |
 
 ## 11. UI / UX
 
