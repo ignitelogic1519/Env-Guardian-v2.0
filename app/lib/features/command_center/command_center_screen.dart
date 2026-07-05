@@ -149,9 +149,13 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
     if (aL || adL || !comp) merged.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
 
-    // Apply per-app time limits here too (not just in the background loop), so a
-    // disabled / over-budget app drops out of BOTH the accessibility whitelist and
-    // the VPN bypass list — losing its internet the moment its budget is spent.
+    // Publish the RAW base whitelist (before time-limit trimming) for the native
+    // enforcer, which applies the time limits itself so they also work with the UI
+    // closed. See AppBlockerService.reconcileWhitelist().
+    await p.setString('eg_base_whitelist', json.encode(merged.toList()));
+
+    // Foreground fast path: also trim here + report usage to the server. (The native
+    // reconciler is the source of truth; this just gives instant feedback in-app.)
     if (inZoneNow) { try { await enforceTimeLimits(p, _empId, merged); } catch (_) {} }
 
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});

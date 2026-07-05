@@ -85,6 +85,8 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | TL-05 | 🔴 | Revoke "Usage Access" permission | **Compliance fails** (Usage Access is now mandatory); "Compliance Required" screen lists it red until re-granted |
 | TL-06 | 🟢 | After some usage, check DB | `app_usage` rows recorded for the device/date |
 | TL-07 | 🟢 | Network Guard ON + a time-limited app hits its budget in-zone | App loses **internet** too (dropped from the VPN bypass list), within ~10s of the limit being reached |
+| TL-08 | 🟢 | **App CLOSED** (swiped away), in-zone, keep using a time-limited app past its budget | It gets blocked/kicked **and** (with Network Guard) loses internet within ~10s — enforcement now runs natively, not only when the UI is open |
+| TL-09 | 🟢 | **App CLOSED**, admin adds/removes a whitelist app (DB or Armory) | Change is enforced within ~10s without opening the app (native reads the published base list) |
 
 ## 9. Compliance & locking
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:installed_apps/app_info.dart';
@@ -48,6 +49,9 @@ class _ArmoryTabState extends State<ArmoryTab> {
         }
 
         await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": _whitelist.toList()});
+        // Also refresh the native base so the change is enforced even if the app is
+        // backgrounded right after (AppBlockerService reads eg_base_whitelist).
+        await p.setString('eg_base_whitelist', json.encode(_whitelist.toList()));
       }));
     });
   }

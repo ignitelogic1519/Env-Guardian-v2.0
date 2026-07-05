@@ -91,6 +91,9 @@ env-guardian-v2.0/
   (`agents.feature_flags`).
 - The app measures real usage via the native **UsageStatsManager** and blocks an
   app once it's **disabled** or **over budget**; usage is reported back to the server.
+- Enforcement is computed **natively** (in `AppBlockerService`, every ~5s) from a
+  base whitelist Dart publishes + live usage, so time limits apply **even when the
+  app is closed** — not just while the Command Center is open.
 - When **Network Guard** (feature B) is on, an over-budget app also **loses
   internet** — the effective (time-limit-adjusted) whitelist feeds both the
   accessibility blocker and the VPN bypass list.

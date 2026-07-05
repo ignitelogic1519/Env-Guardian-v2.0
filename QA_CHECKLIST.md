@@ -79,6 +79,7 @@ shows the always-on Network Guard status.
 - [ ] Open a whitelisted app → allowed; logged `[ALLOWED]`.
 - [ ] **Time limit:** with the feature key on + a limit set, the app is allowed until the daily budget is hit, then blocked.
 - [ ] **Time limit + Network Guard on:** once the app hits its budget it also **loses internet** (not just foreground access) within ~10s.
+- [ ] **App CLOSED (swiped away):** the time limit still fires — the app is blocked and (with Network Guard) loses internet within ~10s. Enforcement + whitelist changes now run natively, not only when the UI is open.
 
 ## 7. User story: Network Guard (feature B — always-on, experimental)
 **Situation:** policy = non-whitelisted apps must also lose internet in-zone, with

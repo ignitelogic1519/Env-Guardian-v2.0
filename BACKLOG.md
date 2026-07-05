@@ -99,12 +99,15 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 - ✅ **Tamper reporting wired end-to-end**: `onRevoke` writes `vpn_revoked`; the
   heartbeat compliance matrix now **reports** it, the Security panel shows a
   warning, and a fresh successful (re)establish clears it.
-- ⚠️ Must still be **tested on a real device**. Caveats: one VPN at a time; user
-  can disable it on BYOD (tamper flag set + reported); status-bar key icon. Because
-  the reconciler now lives in the native accessibility service, start/stop no longer
-  depends on the Flutter background isolate — but the effective whitelist it uses is
-  still refreshed via `updateWhitelistedApps`, so time-limit-driven network cuts made
-  while the UI is fully closed depend on that channel; verify on target hardware.
+- ✅ **Whitelist + time limits also reconciled natively (works with UI closed).**
+  Dart publishes the raw base whitelist as a plain JSON string (`eg_base_whitelist`);
+  `AppBlockerService` reads it + today's usage (native `UsageStatsManager`) + the
+  policy/feature-flags and computes the effective `native_whitelist` itself every 5s.
+  So an admin whitelist change AND a per-app **time limit** now take effect — blocking
+  *and* the VPN internet cut — even while the app is fully closed, no longer only when
+  the Command Center is open.
+- ⚠️ Must still be **tested on a real device**. Caveats: one VPN at a time; user can
+  disable it on BYOD (tamper flag set + reported); status-bar key icon.
 
 ### C. Auto-start / auto-foreground on zone entry  *(in progress)*
 - ✅ **Shipped:** on NEW zone entry (and not yet verified/locked) the background
@@ -173,4 +176,5 @@ Per-OEM onboarding deep-links to keep the service alive on aggressive skins.
 - Notification timer that ticks every second via native chronometer
 - **Samsung Knox** enhanced enforcement mode (stronger control on Samsung, no reset)
 - Network/Wi-Fi-level enforcement (org firewall/NAC) as a device-agnostic complement
-- End-to-end verification of per-app time limits (built, not yet tested on a device)
+- End-to-end verification of per-app time limits (now enforced NATIVELY so they
+  apply even with the app closed — see Feature B; still to be verified on a device)
