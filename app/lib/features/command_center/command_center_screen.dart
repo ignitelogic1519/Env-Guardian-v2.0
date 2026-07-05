@@ -67,8 +67,8 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Future<void> _reqNotifAccess() async { await _armSettingsGrace(); try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _refreshRunning(); }
   // Feature B: Network Guard is ALWAYS-ON by policy (granted once at setup) — there
   // is deliberately no in-app "off". This only (re)requests the one-time VPN consent
-  // when it was never granted or the user revoked it on the device. reconcileVpn()
-  // (shared with the background loop) then keeps it active in the zone every session.
+  // when it was never granted or the user revoked it on the device. The native
+  // AppBlockerService reconciler then keeps it active in the zone every session.
   Future<void> _grantVpn() async {
     try { await platformBlocker.invokeMethod('prepareVpn'); } catch (_) {}
     final p = await SharedPreferences.getInstance();
@@ -156,11 +156,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
-    // Feature B: Network Guard — start/stop/refresh the tunnel to match the
-    // effective (time-limit-aware) whitelist. Non-whitelisted + time-exhausted
-    // apps lose internet in-zone; whitelisted apps bypass. Restored on exit.
-    // Shared with the background loop so it also runs while the app is closed.
-    await reconcileVpn(p, merged, inZoneNow);
+    // Feature B: the Network Guard VPN is reconciled NATIVELY (in AppBlockerService,
+    // off in_restricted_zone + vpn_enabled + the native whitelist) so it reliably
+    // starts on zone entry, refreshes on whitelist change, and — importantly —
+    // STOPS on zone exit even when the UI is closed. Pushing the fresh whitelist
+    // above is all the UI needs to do; no Flutter-side VPN calls here.
 
     if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _notifAccessOk = na; _autostartAck = asAck; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _verifiedSince = p.getInt('verified_since') ?? 0; });
     _refreshRunning();
