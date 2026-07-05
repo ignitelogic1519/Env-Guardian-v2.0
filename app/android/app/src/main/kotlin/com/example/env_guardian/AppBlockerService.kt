@@ -67,6 +67,16 @@ class AppBlockerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val packageName = event.packageName?.toString() ?: return
 
+        // 0. Settings grace window. When the user taps a compliance tile that opens a
+        // system settings screen (accessibility, usage access, notification access,
+        // OEM auto-start, app details…), the app writes a short-lived timestamp. While
+        // it's active we stand down completely — so the enforcer doesn't yank the user
+        // out of the very screen they were sent to enable a REQUIRED setting.
+        val grace = applicationContext
+            .getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+            .getLong("flutter.enforcement_grace_until", 0L)
+        if (System.currentTimeMillis() < grace) return
+
         // 1. Anti-Tamper Dagger Shield
         if (packageName == "com.android.settings" || packageName == "com.android.systemui") {
             val rootNode = rootInActiveWindow

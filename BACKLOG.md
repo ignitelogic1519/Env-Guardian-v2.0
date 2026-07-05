@@ -51,7 +51,9 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 > - **A, B, C, F, G, H, I** — specced below, not yet built
 > Order planned: **E → C → G → A → B → F → H**, with I/polish folded in.
 
-### A. Pre-scan "clean state" gate  *(shipped — soft gate)*
+### A. Pre-scan "clean state" gate  *(shipped — Notification Access now MANDATORY)*
+- ✅ **Notification Access is now a required compliance item** (setup step 8 + a
+  Compliance-screen tile), not optional. The device is not "compliant" without it.
 - ✅ Native `GuardianNotifListener` (NotificationListenerService) tracks apps with
   active notifications = "running in background" (catches background-media like
   YouTube Premium). MainActivity exposes hasNotificationAccess /
@@ -122,8 +124,16 @@ app already read and sync these values.
 Per-OEM onboarding deep-links to keep the service alive on aggressive skins.
 - ✅ **Auto-start helper shipped** — native `openAutoStartSettings` tries known
   MIUI/ColorOS/Funtouch/OneUI/EMUI/OnePlus activities (falls back to app details);
-  surfaced as an "Auto-start / keep alive (OEM)" tile in the compliance panel.
-  Battery-optimization exemption is already requested via the existing Battery step.
+  surfaced as an "Auto-start / keep alive (OEM)" tile.
+- ✅ **Now MANDATORY (acknowledgement-based)** — Android exposes no API to read the
+  auto-start toggle, so this is satisfied by a one-time **acknowledgement** (the
+  user has opened the OEM screen), tracked as `autostart_ack` and required for
+  compliance + to seal the device (setup step 9).
+- ✅ **Settings grace window fixes "opens then closes"** — opening the OEM/app-details
+  page used to trip the accessibility **anti-tamper shield** (it detects "Env
+  Guardian" + "Force stop" on `com.android.settings` and jumps HOME), so the screen
+  closed instantly. Tapping any compliance settings tile now writes
+  `enforcement_grace_until` (~45s); `AppBlockerService` stands down while it's active.
 - ⬜ To do: a watchdog / restart strategy and clearer per-OEM instructions.
 
 ### F. Security hardening  *(shipped — staged)*

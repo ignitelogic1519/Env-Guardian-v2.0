@@ -60,11 +60,13 @@ code plus native Kotlin services for the actual OS-level enforcement.
       theme/glass.dart                 Glassmorphism UI helpers.
       theme/neumorphic.dart            Neumorphism UI helpers.
     features/
-      onboarding/admin_setup_screen.dart   First-run device registration. Now
-                                       also captures the ONE-TIME Network Guard
-                                       (VPN) consent as a required setup step, so
-                                       the guard can auto-activate in the zone
-                                       forever after without another prompt.
+      onboarding/admin_setup_screen.dart   First-run device registration. The
+                                       required grants now run 0–9: the runtime
+                                       permissions + Accessibility, the one-time
+                                       Network Guard (VPN) consent, and the
+                                       now-mandatory Usage Access, Notification
+                                       Access and OEM Auto-start (acknowledgement).
+                                       The device can't be sealed until all pass.
       command_center/command_center_screen.dart  Main dashboard/home screen.
                                        App-bar "Security Features" panel manages
                                        the optional protections (Usage Access,
@@ -79,7 +81,12 @@ code plus native Kotlin services for the actual OS-level enforcement.
   app/android/.../kotlin/com/example/env_guardian/   (NATIVE ENFORCEMENT)
     MainActivity.kt                    Method-channel host; permission prompts.
     AppBlockerService.kt               Accessibility service — detects & blocks
-                                       non-whitelisted foreground apps.
+                                       non-whitelisted foreground apps. Honours a
+                                       short "settings grace window"
+                                       (enforcement_grace_until) so it stands down
+                                       while the user is on a system settings page
+                                       they were sent to (fixes the OEM auto-start
+                                       screen closing instantly).
     GuardianVpnService.kt              Local no-root VpnService — cuts internet
                                        for non-whitelisted apps (Feature B).
                                        Re-established whenever the effective

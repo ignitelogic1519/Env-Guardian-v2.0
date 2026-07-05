@@ -88,7 +88,14 @@ void onStart(ServiceInstance service) async {
     bool oOk = await Permission.systemAlertWindow.isGranted;
     bool cOk = await Permission.camera.isGranted;
 
-    bool isCompliant = nOk && lOk && gpsEnabled && bOk && oOk && cOk && enforcerAlive;
+    // Usage Access, Notification Access and the OEM Auto-start acknowledgement are
+    // mandatory too. Read from the values the foreground persists (the native
+    // status channels aren't reliably reachable from this background isolate).
+    bool usageOk = prefs.getBool('usage_ok') ?? false;
+    bool notifAccessOk = prefs.getBool('notif_access_ok') ?? false;
+    bool autostartAck = prefs.getBool('autostart_ack') ?? false;
+
+    bool isCompliant = nOk && lOk && gpsEnabled && bOk && oOk && cOk && enforcerAlive && usageOk && notifAccessOk && autostartAck;
 
     double cLat = 0, cLng = 0; bool insideGeofence = false;
     try {
@@ -145,6 +152,7 @@ void onStart(ServiceInstance service) async {
     Map<String, bool> compMatrix = {
       "notif": nOk, "loc": lOk, "gps": gpsEnabled, "batt": bOk,
       "overlay": oOk, "cam": cOk, "access": enforcerAlive,
+      "usage": usageOk, "notif_access": notifAccessOk, "autostart": autostartAck,
       "qr_verified": isPhysicallyVerified,
       // Feature B tamper signal: true if the user turned the Network Guard VPN off
       // on the device while it was meant to be enforcing (set by onRevoke()).
