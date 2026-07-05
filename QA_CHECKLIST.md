@@ -31,19 +31,21 @@ SELECT qr_mode FROM public.system_settings WHERE id = 1;   -- expect 'static'
 | `qr_mode` (DB, not env) | Keep `static` unless you have a live QR display | `'totp'` = rotating QR |
 
 ### 0.3 Build + permissions
-Build from the feature branch (`flutter pub get && flutter build apk`). On the
-device grant the **7 core** permissions from the "Compliance Required" screen:
-Location (always), GPS, Camera, Notifications, Battery, Overlay, **Accessibility**.
-Then open the **Security Features** panel (⚙/tune icon, top-right of the Command
-Center — available at any time, in or out of the zone) to enable the **optional**
-protections: **Usage Access**, **Notification Access**, **Auto-start** (OEM), and
-**Network Guard (VPN consent)**.
+Build from the feature branch (`flutter pub get && flutter build apk`). The
+first-run **Sentinel Initiation** screen now requires **7 grants before you can
+seal**: Notifications, Location, Background/Battery, System Overlay, Camera,
+**Accessibility Enforcer**, and **Network Guard (VPN)** — the VPN consent is a
+one-time step here (accept the Android "Connection request" dialog). After setup,
+the **Security Features** panel (⚙/tune icon, top-right of the Command Center)
+manages the remaining optional protections — **Usage Access**, **Notification
+Access**, **Auto-start** (OEM) — and shows the always-on Network Guard status.
 
 ---
 
 ## 1. User story: new employee onboarding (fresh device)
 **Situation:** brand-new install, employee sets up their phone.
-- [ ] Enter name + ID, grant every permission, seal & register → lands on Command Center.
+- [ ] Enter name + ID, grant every permission **including the one-time Network Guard (VPN) consent** (step 6) → only then does "Seal Device & Register" appear → lands on Command Center.
+- [ ] Confirm the seal button stays hidden until the VPN consent (and all others) are granted.
 - [ ] `agents` row created with `android_version`, `sdk_int`, and a non-null `device_token`.
 - [ ] Heartbeat updates `last_pulse`/location; device shows **online** in DB.
 
@@ -75,14 +77,16 @@ protections: **Usage Access**, **Notification Access**, **Auto-start** (OEM), an
 - [ ] **Time limit:** with the feature key on + a limit set, the app is allowed until the daily budget is hit, then blocked.
 - [ ] **Time limit + Network Guard on:** once the app hits its budget it also **loses internet** (not just foreground access) within ~10s.
 
-## 7. User story: Network Guard (feature B — experimental)
-**Situation:** admin wants non-whitelisted apps to also lose internet in-zone.
-- [ ] On a **fully compliant** device, open **Security Features** (app-bar) → toggle **Network Guard on** → one-time VPN consent appears and is accepted (this is the fix: consent is reachable after setup, not only on the compliance screen).
-- [ ] Enter the zone → VPN key icon appears; a non-whitelisted app has **no internet**; a whitelisted app still works.
-- [ ] **With the app closed (swiped away):** the guard still starts on zone entry / stops on exit (driven by the background loop — note the device model + Android version, as this depends on background channel access).
-- [ ] Toggle **Network Guard off** in the panel → tunnel stops; internet restored.
+## 7. User story: Network Guard (feature B — always-on, experimental)
+**Situation:** policy = non-whitelisted apps must also lose internet in-zone, with
+no way for the user to opt out from inside the app.
+- [ ] **Consent is one-time at setup** (step 6) — after sealing, entering the zone must **not** pop the VPN dialog again.
+- [ ] Enter the zone → guard **auto-activates with no prompt**; VPN key icon appears; a non-whitelisted app has **no internet**; a whitelisted app still works.
+- [ ] Open **Security Features** (app-bar ⚙) → Network Guard shows **"Active … cannot be turned off in-app"** with a lock icon (no on/off switch).
+- [ ] **With the app closed (swiped away):** the guard still auto-starts on zone entry / stops on exit (background loop — record device model + Android version, as this depends on background channel access).
 - [ ] Leave the zone → VPN stops; internet restored for all.
-- [ ] Disable the VPN from system Settings while in-zone → `vpn_revoked` flag set; the **Security panel shows a tamper warning**, the app-bar icon turns orange, and the heartbeat `compliance_status.vpn_revoked` is **true** in the DB. Re-enabling / a successful re-establish clears it.
+- [ ] **Tamper:** disable the VPN from system Settings while in-zone → within ~10s it **re-establishes automatically**; `vpn_revoked` briefly reported (heartbeat `compliance_status.vpn_revoked=true`), Security panel shows the tamper warning + app-bar icon turns orange, then clears on the successful re-establish.
+- [ ] **BYOD note (expected, not a bug):** the OS still *lets* you disable the VPN — verify the app's response is auto-recover + report, not a hard block.
 
 ## 8. User story: leaving the zone (clean teardown)
 - [ ] Verification cleared; **timer resets**; VPN off; apps unblocked; "Safe Zone".

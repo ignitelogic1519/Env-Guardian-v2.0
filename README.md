@@ -133,7 +133,7 @@ marked experimental until verified on real hardware.
 | ID | Feature | Status |
 |----|---------|--------|
 | A | Pre-scan clean-state gate (close running apps before QR) | ✅ Shipped (Notification Access; soft gate) |
-| B | VPN per-app network control (block internet in-zone) | ✅ Shipped — enrollable from the **Security Features** panel, background-managed, time-limit-aware, tamper-reported (**experimental, test on device**) |
+| B | VPN per-app network control (block internet in-zone) | ✅ Shipped — **always-on**: one-time consent at setup, auto-activates in-zone, no in-app disable, background-managed, time-limit-aware, tamper-reported (**experimental, test on device**) |
 | C | Auto-foreground on zone entry | ✅ Shipped (full-screen prompt; geofence-wake = future) |
 | D | Admin dashboard (web) | ⏸ Deferred — admin is DB-driven ([`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)) |
 | E | OEM background reliability | ✅ Auto-start helper shipped (watchdog = future) |
@@ -144,11 +144,18 @@ marked experimental until verified on real hardware.
 
 > **New permissions introduced by this rollout**: **Notification Access**
 > (feature A), **VPN consent** (feature B), plus the existing **Usage Access** and
-> **Auto-start** helper (E). The optional ones (Usage Access, Notification Access,
-> Auto-start, Network Guard/VPN) are toggled from the **Security Features** panel
-> in the Command Center app bar — reachable at any time, so they no longer vanish
-> once the device is compliant. The 7 core permissions still appear on the
-> "Compliance Required" screen until granted.
+> **Auto-start** helper (E).
+>
+> - **Network Guard (VPN)** is now granted **once during first-run setup** (a
+>   required step) and is **always-on**: it auto-activates on every zone entry with
+>   no further prompt, and has **no in-app off switch**. If the user disables it in
+>   system settings it re-establishes automatically in-zone and the tamper
+>   (`vpn_revoked`) is reported. *(BYOD limit: Android always permits disabling a
+>   VPN in system settings; enforcement is deterrent-grade, not an OS-level lock.)*
+> - The other optional protections (Usage Access, Notification Access, Auto-start)
+>   are managed from the **Security Features** panel in the Command Center app bar,
+>   reachable at any time. The 7 core permissions appear on the "Compliance
+>   Required" screen until granted.
 
 ---
 

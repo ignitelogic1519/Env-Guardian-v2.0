@@ -57,24 +57,16 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   Future<void> _reqUsage() async { try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _sync(); }
   Future<void> _reqAutostart() async { try { await platformBlocker.invokeMethod('openAutoStartSettings'); } catch (_) {} }
   Future<void> _reqNotifAccess() async { try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _refreshRunning(); }
-  // Feature B: enable/disable the Network Guard. Enabling triggers the one-time
-  // VPN consent and clears any stale tamper flag; disabling tears the tunnel down.
-  // The actual start/stop-on-zone lifecycle is driven by reconcileVpn() (shared
-  // with the background loop), so the guard works even when the app is closed.
-  Future<void> _toggleVpn() async {
+  // Feature B: Network Guard is ALWAYS-ON by policy (granted once at setup) — there
+  // is deliberately no in-app "off". This only (re)requests the one-time VPN consent
+  // when it was never granted or the user revoked it on the device. reconcileVpn()
+  // (shared with the background loop) then keeps it active in the zone every session.
+  Future<void> _grantVpn() async {
+    try { await platformBlocker.invokeMethod('prepareVpn'); } catch (_) {}
     final p = await SharedPreferences.getInstance();
-    final bool on = p.getBool('vpn_enabled') ?? false;
-    if (on) {
-      await p.setBool('vpn_enabled', false);
-      try { await platformBlocker.invokeMethod('stopVpn'); } catch (_) {}
-      await p.remove('vpn_last_wl');
-      if (mounted) setState(() => _vpnEnabled = false);
-    } else {
-      try { await platformBlocker.invokeMethod('prepareVpn'); } catch (_) {}
-      await p.setBool('vpn_enabled', true);
-      await p.setBool('vpn_revoked', false);
-      if (mounted) setState(() { _vpnEnabled = true; _vpnRevoked = false; });
-    }
+    await p.setBool('vpn_enabled', true);
+    await p.setBool('vpn_revoked', false);
+    if (mounted) setState(() { _vpnEnabled = true; _vpnRevoked = false; });
     _sync();
   }
 
@@ -245,12 +237,19 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
           _shieldTile("Auto-start / keep alive (OEM)", false, () async { await _reqAutostart(); await refresh(); }),
           ListTile(
             dense: true,
-            leading: Icon(_vpnEnabled ? Icons.vpn_lock : Icons.vpn_key_off, color: _vpnEnabled ? Colors.green : Colors.white54),
-            title: const Text("Network Guard (cut apps' internet in-zone)", style: TextStyle(color: Colors.white)),
-            subtitle: _vpnRevoked
-                ? const Text("⚠ VPN was turned off on the device — tamper reported", style: TextStyle(color: Colors.orangeAccent, fontSize: 11))
-                : Text(_vpnEnabled ? "On — blocks non-whitelisted & time-exhausted apps" : "Off", style: const TextStyle(color: Colors.white38, fontSize: 11)),
-            trailing: Switch(value: _vpnEnabled, activeColor: Colors.green, onChanged: (v) async { await _toggleVpn(); await refresh(); }),
+            leading: Icon((_vpnEnabled && !_vpnRevoked) ? Icons.vpn_lock : Icons.gpp_bad, color: (_vpnEnabled && !_vpnRevoked) ? Colors.green : Colors.orangeAccent),
+            title: const Text("Network Guard (always-on in-zone)", style: TextStyle(color: Colors.white)),
+            subtitle: Text(
+              _vpnRevoked
+                  ? "⚠ Turned off on the device — re-enables automatically in-zone (tamper reported)"
+                  : (_vpnEnabled
+                      ? "Active — auto-enables in the restricted zone; cannot be turned off in-app"
+                      : "Not granted — tap Enable to give the one-time consent"),
+              style: TextStyle(color: _vpnRevoked ? Colors.orangeAccent : Colors.white38, fontSize: 11),
+            ),
+            trailing: (_vpnEnabled && !_vpnRevoked)
+                ? const Icon(Icons.lock, color: Colors.white38, size: 18)
+                : TextButton(onPressed: () async { await _grantVpn(); await refresh(); }, child: const Text("Enable")),
           ),
           const SizedBox(height: 8),
         ]));
