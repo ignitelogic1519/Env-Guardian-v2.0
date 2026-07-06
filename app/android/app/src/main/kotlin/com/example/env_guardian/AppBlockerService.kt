@@ -166,6 +166,11 @@ class AppBlockerService : AccessibilityService() {
             val shouldRun = vpnEnabled && inZone
             val running = GuardianVpnService.running
 
+            // Every-pulse trace so `adb logcat -s EnvGuardianVPN` shows exactly what
+            // this decision sees, on-device, while you reproduce the bug.
+            android.util.Log.d(GuardianVpnService.TAG,
+                "reconcile: enabled=$vpnEnabled inZone=$inZone running=$running shouldRun=$shouldRun")
+
             if (shouldRun) {
                 val wl = (prefs.getStringSet("native_whitelist", emptySet()) ?: emptySet()).sorted()
                 val sig = wl.joinToString(",")
@@ -174,24 +179,40 @@ class AppBlockerService : AccessibilityService() {
                         .setAction(GuardianVpnService.ACTION_START)
                         .putStringArrayListExtra(GuardianVpnService.EXTRA_WHITELIST, ArrayList(wl))
                     applicationContext.startService(i)
+                    if (lastVpnWlSig == null) vpnLog("VPN ▶ connect — inside restricted zone (${wl.size} bypass apps)")
+                    else vpnLog("VPN ↻ re-establish — whitelist changed (${wl.size} bypass apps)")
                     lastVpnWlSig = sig
                 }
             } else {
                 // Outside the zone (or the guard is off): tear the tunnel down
-                // UNCONDITIONALLY every pulse — do NOT gate on the in-memory `running`
-                // flag, which a process kill can reset to false while a tunnel is still
-                // up (leaving the VPN stuck on with no internet outside the zone).
-                // stopService → GuardianVpnService.onDestroy() closes the interface;
-                // it's a cheap no-op when nothing is running. This is the guarantee
-                // that the VPN is OFF whenever the user is not in the restricted zone.
+                // UNCONDITIONALLY every pulse — never gated on the in-memory `running`
+                // flag, which a process kill can desync while a tunnel is still up.
+                // closeTunnel() shuts the fd DIRECTLY (the OS cannot ignore a closed
+                // fd — the key icon drops with it); stopService is the normal service
+                // teardown on top. Both are cheap no-ops when nothing is running.
+                val closed = GuardianVpnService.closeTunnel("outside restricted zone")
                 applicationContext.stopService(
                     Intent(applicationContext, GuardianVpnService::class.java)
                 )
+                if (closed) vpnLog("VPN ⛔ disconnected — outside restricted zone")
                 lastVpnWlSig = null
             }
         } catch (e: Exception) {
+            android.util.Log.e(GuardianVpnService.TAG, "reconcileVpn error: ${e.message}")
             e.printStackTrace()
         }
+    }
+
+    // Writes a VPN lifecycle event to logcat AND to the in-app Logs tab (iron
+    // ledger), so VPN behaviour can be debugged on-device without a computer.
+    private fun vpnLog(msg: String) {
+        android.util.Log.i(GuardianVpnService.TAG, msg)
+        try {
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            ironLedger.add(0, mapOf("package" to msg, "blocked" to false, "time" to time))
+            if (ironLedger.size > 200) ironLedger.removeLast()
+            Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, false, time) }
+        } catch (e: Exception) { /* logging must never break enforcement */ }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {

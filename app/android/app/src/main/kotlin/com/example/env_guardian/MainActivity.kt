@@ -111,6 +111,13 @@ class MainActivity : FlutterActivity() {
                 "isVpnRunning" -> {
                     result.success(GuardianVpnService.running)
                 }
+                // Manual teardown (safety valve): closes the tunnel fd DIRECTLY and
+                // stops the service. Returns true if a live tunnel was actually closed.
+                "forceStopVpn" -> {
+                    val closed = GuardianVpnService.closeTunnel("manual disconnect from app")
+                    stopService(Intent(this, GuardianVpnService::class.java))
+                    result.success(closed)
+                }
                 else -> result.notImplemented()
             }
         }
