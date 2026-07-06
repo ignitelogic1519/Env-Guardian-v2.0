@@ -24,7 +24,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true, _usageOk = false;
   bool _notifAccessOk = false; List<String> _runningOffenders = []; // feature A: pre-scan gate
   bool _autostartAck = false; // OEM auto-start can't be read back — track that the user visited it
-  bool _vpnEnabled = false, _vpnRevoked = false; // feature B: network guard + tamper flag
+  bool _vpnEnabled = false, _vpnRevoked = false, _vpnLive = false; // feature B: guard policy + tamper flag + live tunnel state
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
 
@@ -75,6 +75,21 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     await p.setBool('vpn_enabled', true);
     await p.setBool('vpn_revoked', false);
     if (mounted) setState(() { _vpnEnabled = true; _vpnRevoked = false; });
+    _sync();
+  }
+
+  // Safety valve: manually close the tunnel (fd closed natively — the key icon
+  // must drop). Shown when a tunnel is still up outside the zone; the native
+  // reconciler will simply re-arm it on the next genuine zone entry.
+  Future<void> _forceStopVpn() async {
+    bool closed = false;
+    try { closed = (await platformBlocker.invokeMethod('forceStopVpn')) == true; } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(closed ? "Network Guard disconnected." : "No active VPN tunnel found."),
+        backgroundColor: closed ? Colors.green : Colors.orange,
+      ));
+    }
     _sync();
   }
 
@@ -129,6 +144,8 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     try { ua = await platformBlocker.invokeMethod('hasUsageAccess'); } catch (_) {}
     bool na = false;
     try { na = await platformBlocker.invokeMethod('hasNotificationAccess'); } catch (_) {}
+    bool vLive = false;
+    try { vLive = (await platformBlocker.invokeMethod('isVpnRunning')) == true; } catch (_) {}
     bool asAck = p.getBool('autostart_ack') ?? false;
     // Persist so the background loop (which can't reliably reach these native
     // channels) can read the last-known state for its own compliance check.
@@ -166,7 +183,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     // STOPS on zone exit even when the UI is closed. Pushing the fresh whitelist
     // above is all the UI needs to do; no Flutter-side VPN calls here.
 
-    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _notifAccessOk = na; _autostartAck = asAck; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _verifiedSince = p.getInt('verified_since') ?? 0; });
+    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _notifAccessOk = na; _autostartAck = asAck; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _vpnLive = vLive; _verifiedSince = p.getInt('verified_since') ?? 0; });
     _refreshRunning();
   }
 
@@ -198,7 +215,28 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     if (_adminLock) return _buildFrozenScreen(true); if (_autoLock) return _buildFrozenScreen(false);
     if (!(_nOk && _fOk && _gpsEnabled && _bOk && _oOk && _cOk && _enforcerAlive && _usageOk && _notifAccessOk && _autostartAck)) return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.gpp_maybe, size: 80, color: Colors.orangeAccent), const SizedBox(height: 10), const Text("COMPLIANCE REQUIRED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), const SizedBox(height: 6), const Text("All items below are mandatory.", style: TextStyle(color: Colors.white54, fontSize: 12)), const SizedBox(height: 16), GlassCard(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), child: Column(children: [_shieldTile("Location", _fOk, _reqF), _shieldTile("GPS", _gpsEnabled, _reqGps), _shieldTile("Camera", _cOk, _reqC), _shieldTile("Enforcer", _enforcerAlive, _reqAccess), _shieldTile("Notifications", _nOk, _reqN), _shieldTile("Battery", _bOk, _reqB), _shieldTile("Overlay", _oOk, _reqO), _shieldTile("Usage Access (time limits)", _usageOk, _reqUsage), _shieldTile("Notification Access (app-close gate)", _notifAccessOk, _reqNotifAccess), _shieldTile("Auto-start / keep alive (OEM)", _autostartAck, _reqAutostart)]))])));
 
-    if (!_insideGeofence) return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shield, size: 100, color: Colors.greenAccent), Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)), Text("Move to Restricted Zone to authorize.")]));
+    if (!_insideGeofence) {
+      return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.shield, size: 100, color: Colors.greenAccent),
+        const Text("SAFE ZONE", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+        const Text("Move to Restricted Zone to authorize."),
+        // Safety valve: the native reconciler should drop the tunnel within ~5s of
+        // leaving the zone. If it's somehow still up, surface it and let the user
+        // kill it directly (fd closed natively) instead of losing internet.
+        if (_vpnLive) ...[
+          const SizedBox(height: 30),
+          GlassCard(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.vpn_lock, size: 40, color: Colors.orangeAccent),
+            const SizedBox(height: 8),
+            const Text("Network Guard is still connected", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
+            const SizedBox(height: 4),
+            const Text("You are outside the restricted zone — the VPN should be off. Tap below to disconnect it now.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 46)), icon: const Icon(Icons.link_off), label: const Text("DISCONNECT VPN NOW"), onPressed: _forceStopVpn),
+          ])),
+        ],
+      ])));
+    }
 
     if (_insideGeofence && _isPhysicallyVerified) {
       final String elapsed = _verifiedSince > 0 ? fmtDuration(DateTime.now().millisecondsSinceEpoch - _verifiedSince) : "00:00:00";
@@ -272,6 +310,15 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
                 ? const Icon(Icons.lock, color: Colors.white38, size: 18)
                 : TextButton(onPressed: () async { await _grantVpn(); await refresh(); }, child: const Text("Enable")),
           ),
+          // Safety valve: a tunnel is up while we're outside the zone → offer a
+          // direct disconnect (native fd close). Auto re-arms on next zone entry.
+          if (_vpnLive && !_insideGeofence)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.link_off, color: Colors.orangeAccent),
+              title: const Text("VPN still connected outside the zone", style: TextStyle(color: Colors.orangeAccent)),
+              trailing: TextButton(onPressed: () async { await _forceStopVpn(); await refresh(); }, child: const Text("Disconnect")),
+            ),
           const SizedBox(height: 8),
         ]));
       }),

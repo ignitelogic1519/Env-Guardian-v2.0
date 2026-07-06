@@ -46,6 +46,18 @@ between sessions. (Things already shipped are in git history / the READMEs.)
     kill resets that in-memory flag to false while a tunnel is still up, so the stop
     was skipped. Now, whenever the user is outside the zone, it calls `stopService`
     **unconditionally** every 5s (idempotent) — the VPN is guaranteed off outside.
+  - **Hard teardown + observability** (after the icon still lingered on-device):
+    the live tunnel `ParcelFileDescriptor` is now held **statically** in
+    `GuardianVpnService` and the out-of-zone path closes that **fd directly**
+    (`closeTunnel()`) — an Android VPN session exists only while its fd is open, so
+    this is a teardown the OS cannot ignore, independent of any service-lifecycle
+    desync. Every VPN decision/lifecycle event is logged to logcat (tag
+    `EnvGuardianVPN`) **and to the in-app Logs tab**, so it can be debugged
+    on-device. A **manual "Disconnect VPN now"** safety button appears on the
+    Safe-Zone screen (and in Security Features) whenever a tunnel is still up
+    outside the zone; the reconciler re-arms automatically on the next zone entry.
+    (Verified server/DB-side: the backend has **no** VPN control anywhere — the
+    tunnel can only be held open by the app process itself.)
 
 ### UI
 - **Neumorphism + glassmorphism** look: animated aurora gradient background,
