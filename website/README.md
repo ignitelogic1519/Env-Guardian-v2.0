@@ -1,18 +1,33 @@
 # Env Guardian — Marketing Website
 
-A complete, multi-page, animated product site (light theme, glassmorphism,
-animate-on-scroll, responsive) with the mascot **Aegis** and real app screenshots.
+A complete, multi-page, animated product site — **light, professional SaaS look**
+(inspired by flowty.co): white canvas, bold display type, soft-shadow cards,
+springy staggered scroll reveals, an industry marquee strip, floating phone
+mockups with pointer tilt, and real app screenshots. Fully responsive (built
+mobile-first for Android-sized screens) and respects `prefers-reduced-motion`.
+
+> The floating AI chat widget (Aegis) has been **removed entirely** from the
+> site. The backend's `/api/aegis/chat` proxy still exists server-side but is
+> dormant/unused by these pages.
 
 ## Pages
 | File | Purpose |
 |------|---------|
-| `index.html` | Home — hero, mascot, stats, problem, feature + industry teasers |
+| `index.html` | Home — hero (line-mask headline animation), industry marquee, stats, problem, feature + industry teasers |
 | `features.html` | Every capability, with screenshots |
 | `solutions.html` | Benefits by industry + persona characters |
 | `how-it-works.html` | The 4-step flow, with real app screens |
 | `contact.html` | Demo request form + FAQ |
 
 Shared assets live in `assets/` (`style.css`, `main.js`, `shots/` screenshots).
+
+## Animations (all CSS/vanilla JS — no libraries)
+- **Headline line-mask reveal** on load (hero `h1` lines slide up out of a clip).
+- **Staggered scroll reveals** per section with a springy `cubic-bezier(.22,1,.36,1)`.
+- **Industry marquee** — an infinite, edge-masked scrolling strip (pauses on hover).
+- **Pointer tilt** on the hero phone stack (desktop only), plus a gentle float.
+- **Hover-lift cards** with icon nudges; animated stat **counters**; scroll progress bar.
+- Everything is disabled under `prefers-reduced-motion`.
 
 ## View it
 - **Locally:** open `index.html` in a browser (double-click). Everything is
@@ -31,20 +46,8 @@ Shared assets live in `assets/` (`style.css`, `main.js`, `shots/` screenshots).
 - **Contact:** the form uses a `mailto:` to `ignite.logic1519@gmail.com`. For a real
   inbox-free submission, swap the `<form action>` to a Formspree/Getform endpoint.
 - **Screenshots:** in `assets/shots/` — replace with newer captures anytime (keep names).
+- **Marquee items:** edit the `.m-item` spans in `index.html` (the list is duplicated
+  once for the seamless loop — keep both copies in sync).
 
-## Aegis chatbot — make it a real AI (LLM)
-The floating **Aegis** bot works out of the box using a built-in FAQ brain. To turn it
-into a **real LLM assistant** (Claude):
-1. On the backend (Render) set env vars: `LLM_API_KEY` = your Anthropic API key,
-   optionally `LLM_MODEL` (default `claude-haiku-4-5-20251001`). Redeploy.
-2. Allow the site to call the API: add your site's domain to `CORS_ORIGINS`
-   (sites on `*.netlify.app` / `*.vercel.app` / `*.onrender.com` are already allowed).
-3. That's it — the widget calls `POST /api/aegis/chat` on the server, which proxies
-   to the LLM with the key kept server-side. If the key is missing or the call fails,
-   it automatically falls back to the FAQ brain, so it never breaks.
-- Point the widget at a different API host by setting `window.AEGIS_API` before
-  `aegis-bot.js` loads. Guardrails (no secrets, on-topic only) live in the server
-  system prompt **and** a client-side pre-check.
-
-> First complete cut. Easy next steps: a logo, testimonials, a pricing page,
-> and swapping the mailto form for a hosted form service.
+> Easy next steps: a logo, testimonials, a pricing page, and swapping the
+> mailto form for a hosted form service.

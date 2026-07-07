@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
-<link rel="stylesheet" href="assets/aegis-bot.css">
 </head>
 <body>
 <div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
@@ -33,8 +32,8 @@
 <header class="hero wrap">
   <div class="hero-grid">
     <div>
-      <span class="pill reveal">🛡 BYOD Mobile Device Management</span>
-      <h1 class="reveal">Secure zones.<br>Personal phones.<br><span class="grad">Zero compromise.</span></h1>
+      <span class="pill reveal">BYOD Mobile Device Management</span>
+      <h1><span class="h-line"><span>Secure zones.</span></span><span class="h-line"><span>Personal phones.</span></span><span class="h-line"><span class="grad">Zero compromise.</span></span></h1>
       <p class="lead reveal">Env Guardian turns any employee's personal Android into a compliant device — but only where it matters. Step into a restricted zone and unapproved apps are blocked, their network is cut and presence is verified. Walk out, and the phone is instantly theirs again.</p>
       <div class="cta reveal">
         <a class="btn btn-primary" href="how-it-works.html">See how it works →</a>
@@ -42,7 +41,7 @@
       </div>
     </div>
     <div class="reveal right">
-      <div class="phone-stack">
+      <div class="phone-stack tilt">
         <div class="phone p-b float"><img src="assets/shots/map-zone.jpeg" alt="Restricted zone drawn on the map"></div>
         <div class="phone p-a float"><img src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer"></div>
       </div>
@@ -50,30 +49,13 @@
   </div>
 </header>
 
-<!-- MASCOT CALLOUT -->
-<section class="wrap" style="padding-top:20px">
-  <div class="glass callout reveal">
-    <div class="who">
-      <svg class="aegis float" viewBox="0 0 150 170" width="140" height="158" role="img" aria-label="Aegis mascot">
-        <defs><linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>
-        <path d="M75 8 L138 31 V80 C138 126 110 148 75 158 C40 148 12 126 12 80 V31 Z" fill="url(#ag)"/>
-        <path d="M75 8 L138 31 V80 C138 126 110 148 75 158 C40 148 12 126 12 80 V31 Z" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
-        <rect x="40" y="58" width="70" height="50" rx="19" fill="#fff" opacity=".96"/>
-        <g class="blink"><circle cx="61" cy="81" r="8" fill="#16204a"/><circle cx="89" cy="81" r="8" fill="#16204a"/>
-        <circle cx="63.4" cy="78.6" r="2.5" fill="#fff"/><circle cx="91.4" cy="78.6" r="2.5" fill="#fff"/></g>
-        <path d="M60 95 Q75 108 90 95" fill="none" stroke="#16204a" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="49" cy="93" r="4" fill="#ffb4a2" opacity=".7"/><circle cx="101" cy="93" r="4" fill="#ffb4a2" opacity=".7"/>
-        <g class="wave"><rect x="126" y="60" width="12" height="28" rx="6" fill="url(#ag)"/><circle cx="132" cy="55" r="9" fill="#ffd7a8"/></g>
-        <circle cx="110" cy="122" r="15" fill="#14b8a6" stroke="#fff" stroke-width="3"/>
-        <path d="M103.5 122 l4.5 4.5 l8.5 -9.5" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
-    <div class="bubble">
-      <strong>Hi, I'm Aegis 👋 — your perimeter guardian.</strong>
-      <p style="margin:8px 0 0;color:var(--muted)">I watch the boundary so your team doesn't have to. The moment a phone crosses into a secure area, I lock it down to policy, verify the person is really there, and log everything — then hand the phone straight back when they leave. Personal privacy stays personal; only the zone is controlled.</p>
-    </div>
+<!-- INDUSTRY MARQUEE -->
+<div class="marquee" aria-hidden="true">
+  <div class="m-track">
+    <span class="m-item">🏢 Corporate &amp; IT</span><span class="m-item">🎓 Exams &amp; Education</span><span class="m-item">🏥 Healthcare</span><span class="m-item">🗄️ Data Centres</span><span class="m-item">🏭 R&amp;D &amp; Manufacturing</span><span class="m-item">🏛️ Government &amp; Defense</span><span class="m-item">💳 Finance</span><span class="m-item">🎧 Call Centres &amp; BPO</span><span class="m-item">🎬 Media &amp; Events</span>
+    <span class="m-item">🏢 Corporate &amp; IT</span><span class="m-item">🎓 Exams &amp; Education</span><span class="m-item">🏥 Healthcare</span><span class="m-item">🗄️ Data Centres</span><span class="m-item">🏭 R&amp;D &amp; Manufacturing</span><span class="m-item">🏛️ Government &amp; Defense</span><span class="m-item">💳 Finance</span><span class="m-item">🎧 Call Centres &amp; BPO</span><span class="m-item">🎬 Media &amp; Events</span>
   </div>
-</section>
+</div>
 
 <!-- STATS -->
 <section class="wrap" style="padding-top:24px">
@@ -82,34 +64,6 @@
     <div class="glass stat reveal"><div class="n" data-count="0"></div><div class="l">Device wipes required</div></div>
     <div class="glass stat reveal"><div class="n" data-count="10" data-suffix="s"></div><div class="l">Policy sync to device</div></div>
     <div class="glass stat reveal"><div class="n" data-count="24" data-suffix="/7"></div><div class="l">Perimeter monitoring</div></div>
-  </div>
-</section>
-
-<!-- ANIMATED CHARACTER STAGE -->
-<section class="wrap" id="aegis">
-  <div class="head center">
-    <span class="eyebrow reveal">Meet your guardian</span>
-    <h2 class="reveal">Say hello to <span class="grad">Aegis</span></h2>
-    <p class="lead center reveal">Always on the perimeter — blinking, waving, and quietly enforcing — so your team can just get on with the work.</p>
-  </div>
-  <div class="aegis-stage reveal zoom">
-    <div class="aegis-glow"></div>
-    <svg class="aegis float" viewBox="0 0 150 170" width="210" height="238" role="img" aria-label="Aegis mascot waving">
-      <defs><linearGradient id="ag3" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4f6ef7"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>
-      <path d="M75 8 L138 31 V80 C138 126 110 148 75 158 C40 148 12 126 12 80 V31 Z" fill="url(#ag3)"/>
-      <path d="M75 8 L138 31 V80 C138 126 110 148 75 158 C40 148 12 126 12 80 V31 Z" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
-      <rect x="40" y="58" width="70" height="50" rx="19" fill="#fff" opacity=".96"/>
-      <g class="blink"><circle cx="61" cy="81" r="8" fill="#16204a"/><circle cx="89" cy="81" r="8" fill="#16204a"/><circle cx="63.4" cy="78.6" r="2.5" fill="#fff"/><circle cx="91.4" cy="78.6" r="2.5" fill="#fff"/></g>
-      <path d="M60 95 Q75 108 90 95" fill="none" stroke="#16204a" stroke-width="4" stroke-linecap="round"/>
-      <circle cx="49" cy="93" r="4" fill="#ffb4a2" opacity=".7"/><circle cx="101" cy="93" r="4" fill="#ffb4a2" opacity=".7"/>
-      <g class="wave"><rect x="126" y="60" width="12" height="28" rx="6" fill="url(#ag3)"/><circle cx="132" cy="55" r="9" fill="#ffd7a8"/></g>
-      <circle cx="110" cy="122" r="15" fill="#14b8a6" stroke="#fff" stroke-width="3"/>
-      <path class="draw" d="M103.5 122 l4.5 4.5 l8.5 -9.5" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    <span class="chip-float cf1">📍 Zone-aware</span>
-    <span class="chip-float cf2">🛡️ Blocking apps</span>
-    <span class="chip-float cf3">🌐 Cutting network</span>
-    <span class="chip-float cf4">📊 Logging it all</span>
   </div>
 </section>
 
@@ -196,6 +150,5 @@
   <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
 </footer>
 <script src="assets/main.js"></script>
-<script src="assets/aegis-bot.js"></script>
 </body>
 </html>
