@@ -239,16 +239,16 @@ footer{margin-top:30px;border-top:1px solid var(--line);background:#fff}
 /* ===== Scroll reveal system — REWIND-capable (plays forward on enter, reverses
    on scroll-up), staggered per section via --d. Hidden state only applies once
    JS tags <html class="js"> so content is never invisible if scripts fail. ===== */
-html.js .reveal{opacity:0;transform:translateY(46px);
-        transition:opacity .85s var(--spring) var(--d,0ms),transform .85s var(--spring) var(--d,0ms),filter .85s var(--spring) var(--d,0ms);
-        will-change:transform,opacity}
-html.js .reveal.left{transform:translateX(-60px)}
-html.js .reveal.right{transform:translateX(60px)}
-html.js .reveal.zoom{transform:scale(.86)}
-html.js .reveal.pop{transform:translateY(42px) scale(.92)}
-html.js .reveal.blur{filter:blur(14px);transform:translateY(30px)}
-html.js .reveal.flip{transform:perspective(900px) rotateX(16deg) translateY(40px);transform-origin:top}
-html.js .reveal.tiltin{transform:translateY(50px) rotate(-3deg)}
+html.js .reveal{opacity:0;transform:translateY(70px) scale(.96);filter:blur(6px);
+        transition:opacity .9s var(--spring) var(--d,0ms),transform .9s var(--spring) var(--d,0ms),filter .9s var(--spring) var(--d,0ms);
+        will-change:transform,opacity,filter}
+html.js .reveal.left{transform:translateX(-90px) scale(.97)}
+html.js .reveal.right{transform:translateX(90px) scale(.97)}
+html.js .reveal.zoom{transform:scale(.8)}
+html.js .reveal.pop{transform:translateY(60px) scale(.85)}
+html.js .reveal.blur{filter:blur(18px);transform:translateY(40px)}
+html.js .reveal.flip{transform:perspective(900px) rotateX(22deg) translateY(56px);transform-origin:top}
+html.js .reveal.tiltin{transform:translateY(64px) rotate(-4deg)}
 html.js .reveal.vis{opacity:1;transform:none;filter:none}
 
 /* scrub targets need GPU compositing + no transition (JS drives transform live) */
