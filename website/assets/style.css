@@ -113,6 +113,27 @@ h3{font-size:20px}
 .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
 @media(max-width:900px){.cta{justify-content:center}}
 
+/* hero trust row */
+.trust{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;color:var(--muted);font-size:13.5px;font-weight:600}
+.trust span{white-space:nowrap}
+@media(max-width:900px){.trust{justify-content:center}}
+
+/* before/after compare cards */
+.compare .tag{display:inline-block;font-weight:700;font-size:13px;padding:6px 14px;border-radius:999px;margin-bottom:10px}
+.compare.safe{border-color:rgba(20,184,166,.35)}
+.compare.safe .tag{background:rgba(20,184,166,.10);color:#0d9488}
+.compare.zone{border-color:rgba(79,110,247,.35)}
+.compare.zone .tag{background:rgba(79,110,247,.10);color:var(--accent)}
+.compare h3{margin:0 0 8px}
+
+/* screenshot showcase row */
+.shot-row{display:flex;gap:26px;justify-content:center;align-items:flex-end;flex-wrap:wrap}
+.shot-row .phone{width:230px;margin:0}
+@media(max-width:760px){.shot-row .phone{width:200px}}
+
+/* step cards get a numbered accent icon */
+.step-card .ico{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:Outfit;font-weight:800;font-size:22px}
+
 /* ===== Marquee strip (flowty signature) ===== */
 .marquee{overflow:hidden;border-block:1px solid var(--line);background:#fff;padding:18px 0;
          -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
@@ -215,16 +236,23 @@ footer{margin-top:30px;border-top:1px solid var(--line);background:#fff}
 .badge-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 .chip{padding:6px 12px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:12.5px;color:var(--muted)}
 
-/* ===== Scroll reveal system (springy, staggered per section) =====
-   Hidden state only applies once JS tags <html class="js"> — so content is
-   never invisible if scripts fail to load (progressive enhancement). */
-html.js .reveal{opacity:0;transform:translateY(44px);
-        transition:opacity .8s var(--spring),transform .8s var(--spring);will-change:transform,opacity}
-html.js .reveal.left{transform:translateX(-56px)}
-html.js .reveal.right{transform:translateX(56px)}
-html.js .reveal.zoom{transform:scale(.88)}
-html.js .reveal.pop{transform:translateY(40px) scale(.94)}
-html.js .reveal.vis{opacity:1;transform:none}
+/* ===== Scroll reveal system — REWIND-capable (plays forward on enter, reverses
+   on scroll-up), staggered per section via --d. Hidden state only applies once
+   JS tags <html class="js"> so content is never invisible if scripts fail. ===== */
+html.js .reveal{opacity:0;transform:translateY(46px);
+        transition:opacity .85s var(--spring) var(--d,0ms),transform .85s var(--spring) var(--d,0ms),filter .85s var(--spring) var(--d,0ms);
+        will-change:transform,opacity}
+html.js .reveal.left{transform:translateX(-60px)}
+html.js .reveal.right{transform:translateX(60px)}
+html.js .reveal.zoom{transform:scale(.86)}
+html.js .reveal.pop{transform:translateY(42px) scale(.92)}
+html.js .reveal.blur{filter:blur(14px);transform:translateY(30px)}
+html.js .reveal.flip{transform:perspective(900px) rotateX(16deg) translateY(40px);transform-origin:top}
+html.js .reveal.tiltin{transform:translateY(50px) rotate(-3deg)}
+html.js .reveal.vis{opacity:1;transform:none;filter:none}
+
+/* scrub targets need GPU compositing + no transition (JS drives transform live) */
+html.js [data-scrub]{will-change:transform,opacity}
 
 /* scroll progress bar */
 #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:100;border-radius:0 3px 3px 0;
