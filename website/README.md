@@ -22,12 +22,22 @@ mobile-first for Android-sized screens) and respects `prefers-reduced-motion`.
 Shared assets live in `assets/` (`style.css`, `main.js`, `shots/` screenshots).
 
 ## Animations (all CSS/vanilla JS — no libraries)
+- **Animate-on-scroll with REWIND** — reveals play forward on enter and *reverse*
+  when you scroll back up (the IntersectionObserver keeps observing and toggles the
+  `vis` class both ways). Add `class="reveal"` plus an optional variant:
+  `left`, `right`, `zoom`, `pop`, `blur`, `flip`, `tiltin`. Stagger is computed
+  per **section** (via the `--d` CSS var) so each block cascades on its own.
+- **Scroll-scrubbed transforms** — continuous motion tied to scroll position (and
+  reversing naturally on scroll-up). Add `data-scrub="rise|fall|left|right|zoom|
+  rotate|fade"` with optional `data-scrub-amt="70"` to any element (used on the
+  phone mockups for parallax).
 - **Headline line-mask reveal** on load (hero `h1` lines slide up out of a clip).
-- **Staggered scroll reveals** per section with a springy `cubic-bezier(.22,1,.36,1)`.
 - **Industry marquee** — an infinite, edge-masked scrolling strip (pauses on hover).
 - **Pointer tilt** on the hero phone stack (desktop only), plus a gentle float.
-- **Hover-lift cards** with icon nudges; animated stat **counters**; scroll progress bar.
-- Everything is disabled under `prefers-reduced-motion`.
+- **Hover-lift cards**, animated stat **counters**, background blob **parallax**,
+  nav solidify-on-scroll, scroll progress bar.
+- Everything is disabled under `prefers-reduced-motion` (content shown, counters
+  filled to final value).
 
 ## View it
 - **Locally:** open `index.html` in a browser (double-click). Everything is
