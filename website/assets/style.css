@@ -270,7 +270,96 @@ html.js [data-scrub]{will-change:transform,opacity}
 .blink{transform-box:fill-box;transform-origin:center;animation:blink 4.6s infinite}
 @keyframes blink{0%,93%,100%{transform:scaleY(1)}96.5%{transform:scaleY(.08)}}
 
+/* ===== Scroll-lit statement (pinned; words light up as you scroll) ===== */
+.statement{height:240vh;padding:0;position:relative}
+.st-pin{position:sticky;top:0;min-height:100vh;display:flex;align-items:center}
+.st-text{font-family:Outfit,sans-serif;font-weight:800;letter-spacing:-.025em;line-height:1.22;
+         font-size:clamp(27px,4.4vw,52px);max-width:940px;margin:0}
+.st-text .w{color:rgba(15,23,42,.12);transition:color .3s ease}
+.st-text .w.lit{color:var(--ink)}
+.st-text b{font-weight:800}
+.st-text b .w.lit{background:linear-gradient(115deg,var(--accent),var(--accent2));
+         -webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ===== Pinned story scene (Apple-style scroll scrub through app screens) ===== */
+.scene{height:400vh;padding:0;position:relative}
+.scene-pin{position:sticky;top:0;height:100vh;display:flex;align-items:center;overflow:hidden}
+.scene-glow{position:absolute;inset:0;pointer-events:none;transition:opacity .2s linear}
+.sg-a{background:radial-gradient(640px 520px at 72% 46%,rgba(20,184,166,.16),transparent 68%)}
+.sg-b{background:radial-gradient(640px 520px at 72% 46%,rgba(79,110,247,.18),transparent 68%);opacity:0}
+.scene-grid{display:grid;grid-template-columns:1.1fr 330px;gap:64px;align-items:center;width:100%;position:relative}
+.scene-copy .lead{margin-top:6px}
+.scene-steps{display:grid;gap:12px;margin:26px 0 24px;counter-reset:sstep}
+.s-step{padding:15px 18px;border-radius:16px;border:1px solid transparent;opacity:.35;
+        transform:translateX(-8px);transition:opacity .45s var(--spring),transform .45s var(--spring),
+        background .45s,border-color .45s,box-shadow .45s}
+.s-step .k{display:block;font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
+.s-step h3{margin:0 0 3px;font-size:17px}
+.s-step p{margin:0;color:var(--muted);font-size:14px}
+.s-step.on{opacity:1;transform:none;background:rgba(255,255,255,.85);border-color:var(--line);box-shadow:var(--shadow-sm)}
+.scene-phone{width:300px;margin:0 auto;will-change:transform}
+.s-frames{position:relative;aspect-ratio:9/19;border-radius:28px;overflow:hidden;background:#0f172a}
+.s-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;opacity:0}
+.s-frame:first-child{opacity:1}
+.s-progress{height:4px;border-radius:99px;background:rgba(15,23,42,.08);margin:22px auto 0;width:82%;overflow:hidden}
+.s-progress i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+@media(max-width:900px){
+  /* compact so the whole pinned scene fits one small viewport:
+     phone first, one-line steps, no step body copy */
+  .scene-grid{grid-template-columns:1fr;gap:14px;text-align:center}
+  .scene-phone{grid-row:1;width:172px}
+  .scene-copy .eyebrow,.scene-copy .lead,.s-step p,.s-step .k{display:none}
+  .scene-copy h2{font-size:clamp(21px,5.6vw,27px);margin:6px 0 0}
+  .scene-steps{gap:7px;margin:12px 0 14px;text-align:left}
+  .s-step{padding:9px 14px}
+  .s-step h3{font-size:14.5px;margin:0}
+  .s-progress{margin-top:12px}
+  .scene-pin{padding:14px 0}
+}
+
+/* ===== Bento feature grid ===== */
+.bento{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(185px,auto);gap:20px}
+.bento .card{position:relative;overflow:hidden;display:flex;flex-direction:column}
+.bento .card::after{content:"";position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .35s;
+        background:radial-gradient(280px circle at var(--mx,50%) var(--my,50%),rgba(79,110,247,.10),transparent 65%)}
+.bento .card:hover::after{opacity:1}
+.b-lg{grid-column:span 2;grid-row:span 2;
+      background:linear-gradient(160deg,#fff 30%,rgba(79,110,247,.05));border-color:rgba(79,110,247,.18)}
+.b-wide{grid-column:span 2}
+.b-shot{margin-top:auto;padding-top:22px}
+.b-shot img{width:100%;height:280px;object-fit:cover;object-position:top;border-radius:18px;
+      border:1px solid var(--line);box-shadow:var(--shadow);
+      transform:rotate(-2deg) translateY(10px);transition:transform .55s var(--spring)}
+.b-lg:hover .b-shot img{transform:rotate(0) translateY(2px)}
+/* mini compliance chart (animates when the card reveals) */
+.bars{display:flex;gap:8px;align-items:flex-end;height:72px;margin-top:auto;padding-top:18px}
+.bars i{flex:1;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,var(--accent),var(--accent2));
+        opacity:.9;height:calc(var(--h)*1%);transform:scaleY(0);transform-origin:bottom;
+        transition:transform .8s var(--spring)}
+.reveal.vis .bars i{transform:none}
+.bars i:nth-child(2){transition-delay:.08s}.bars i:nth-child(3){transition-delay:.16s}
+.bars i:nth-child(4){transition-delay:.24s}.bars i:nth-child(5){transition-delay:.32s}
+.bars i:nth-child(6){transition-delay:.4s}.bars i:nth-child(7){transition-delay:.48s}
+@media(max-width:980px){
+  .bento{grid-template-columns:1fr 1fr}
+  .b-lg{grid-column:span 2;grid-row:auto}
+  .b-shot img{height:220px}
+}
+@media(max-width:600px){.bento{grid-template-columns:1fr}.b-lg,.b-wide{grid-column:auto}}
+
+/* pinned scenes collapse gracefully without JS or with reduced motion */
+html:not(.js) .scene,html:not(.js) .statement{height:auto}
+html:not(.js) .scene-pin,html:not(.js) .st-pin{position:static;height:auto;min-height:0;padding:84px 0}
+html:not(.js) .s-step{opacity:1;transform:none}
+html:not(.js) .st-text .w{color:inherit}
+
 @media(prefers-reduced-motion:reduce){
   html.js .reveal,.h-line>span{opacity:1;transform:none;animation:none;transition:none}
   .blob,.float,.blink,.wave,.m-track,.pill::before{animation:none}
+  .scene,.statement{height:auto}
+  .scene-pin,.st-pin{position:static;height:auto;min-height:0;padding:84px 0}
+  .s-step{opacity:1;transform:none;transition:none}
+  .st-text .w{color:inherit}
+  .bars i{transform:none;transition:none}
+  .bento .card::after{display:none}
 }

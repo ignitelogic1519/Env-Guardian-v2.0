@@ -1,11 +1,16 @@
 /* Env Guardian marketing site — motion engine (flowty-style)
    Techniques: animate-on-scroll that REWINDS on scroll-up, scroll-scrubbed
-   transforms (continuous, reverses naturally), parallax, marquee, tilt.
+   transforms (continuous, reverses naturally), a pinned Apple-style story
+   scene (scroll position picks the app screenshot "frame"), a pinned
+   statement whose words light up with scroll, parallax, marquee, tilt and
+   a cursor spotlight on bento cards.
    All vanilla JS, no libraries. Honours prefers-reduced-motion. */
 (function () {
   var docEl = document.documentElement;
   docEl.classList.add('js'); // progressive enhancement: reveal-hiding only when JS runs
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
   // ---- year ----
   var yr = document.getElementById('yr');
@@ -101,7 +106,7 @@
       var r = el.getBoundingClientRect();
       // p: 0 when element bottom enters, 1 when it exits the top; 0.5 ~ centered
       var p = (vh - r.top) / (vh + r.height);
-      p = p < 0 ? 0 : p > 1 ? 1 : p;
+      p = clamp01(p);
       var c = (p - 0.5) * 2; // -1 … 1 (centered = 0)
       var amt = parseFloat(el.dataset.scrubAmt || '70');
       var type = el.dataset.scrub, t = '';
@@ -115,6 +120,108 @@
       if (el.dataset.scrub === 'fade' || el.hasAttribute('data-scrub-fade')) {
         el.style.opacity = String(1 - Math.min(Math.abs(c) * 1.1, 0.75));
       }
+    }
+  }
+
+  // ======================================================================
+  // Pinned story scene — the Apple technique. The section is 400vh tall and
+  // its content is position:sticky, so the user scrolls "through" it while
+  // the phone stays put. Scroll progress (0..1) is a pure function of scroll
+  // position, so scrolling up rewinds the whole scene for free:
+  //   frame f = progress * (frames-1) → crossfade adjacent screenshots,
+  //   highlight the matching step, fill the progress bar, shift the glow
+  //   from "safe" teal to "secure" indigo.
+  // ======================================================================
+  var scene = document.querySelector('.scene');
+  var sceneParts = null;
+  if (scene && !reduced) {
+    sceneParts = {
+      frames: scene.querySelectorAll('.s-frame'),
+      steps: scene.querySelectorAll('.s-step'),
+      fill: scene.querySelector('.s-progress i'),
+      glowA: scene.querySelector('.sg-a'),
+      glowB: scene.querySelector('.sg-b'),
+      phone: scene.querySelector('.scene-phone')
+    };
+    // decode every frame up front so scrubbing never stutters
+    sceneParts.frames.forEach(function (img) {
+      if (img.decode) img.decode().catch(function () {});
+    });
+  }
+
+  function applyScene() {
+    var s = sceneParts;
+    if (!s || !s.frames.length) return;
+    var vh = window.innerHeight;
+    var r = scene.getBoundingClientRect();
+    var total = r.height - vh;
+    if (total <= 0) return;
+    var p = clamp01(-r.top / total);
+    var n = s.frames.length;
+    var f = p * (n - 1);
+    for (var i = 0; i < n; i++) {
+      // linear crossfade between adjacent frames; exact frame = fully opaque
+      s.frames[i].style.opacity = String(Math.max(0, 1 - Math.abs(f - i)));
+    }
+    var act = Math.round(f);
+    for (var j = 0; j < s.steps.length; j++) s.steps[j].classList.toggle('on', j === act);
+    if (s.fill) s.fill.style.width = (p * 100) + '%';
+    // glow shifts from safe-teal to secure-indigo as enforcement arms itself
+    var tint = clamp01((f - 0.5) / 1.2);
+    if (s.glowA) s.glowA.style.opacity = String(1 - tint);
+    if (s.glowB) s.glowB.style.opacity = String(tint);
+    if (s.phone) {
+      s.phone.style.transform =
+        'rotate(' + ((p - 0.5) * 3.2) + 'deg) scale(' + (0.95 + 0.05 * Math.sin(p * Math.PI)) + ')';
+    }
+  }
+
+  // ======================================================================
+  // Scroll-lit statement — split the pinned paragraph into word <span>s,
+  // then map scroll progress to "how many words are lit". Scrolling back
+  // un-lights them (scrub model: state is a function of scroll position).
+  // ======================================================================
+  var statement = document.querySelector('.statement');
+  var stWords = [];
+  if (statement && !reduced) {
+    statement.querySelectorAll('[data-words]').forEach(function (rootEl) {
+      splitWords(rootEl);
+      stWords = stWords.concat(Array.prototype.slice.call(rootEl.querySelectorAll('.w')));
+    });
+  }
+
+  function splitWords(node) {
+    // recursive so inline tags like <b> keep wrapping their (gradient) words
+    Array.prototype.slice.call(node.childNodes).forEach(function (child) {
+      if (child.nodeType === 3) {
+        var parts = child.textContent.split(/(\s+)/);
+        var frag = document.createDocumentFragment();
+        parts.forEach(function (part) {
+          if (!part) return;
+          if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+          var w = document.createElement('span');
+          w.className = 'w';
+          w.textContent = part;
+          frag.appendChild(w);
+        });
+        node.replaceChild(frag, child);
+      } else if (child.nodeType === 1) {
+        splitWords(child);
+      }
+    });
+  }
+
+  function applyStatement() {
+    if (!stWords.length) return;
+    var vh = window.innerHeight;
+    var r = statement.getBoundingClientRect();
+    var total = r.height - vh;
+    if (total <= 0) return;
+    var p = clamp01(-r.top / total);
+    // finish lighting at ~85% so the full sentence holds on screen for a beat
+    var lit = Math.floor(clamp01(p / 0.85) * stWords.length);
+    for (var i = 0; i < stWords.length; i++) {
+      stWords[i].classList.toggle('lit', i < lit);
     }
   }
 
@@ -135,6 +242,8 @@
         if (b2) b2.style.transform = 'translateY(' + (-y * 0.05) + 'px)';
         if (b3) b3.style.transform = 'translateY(' + (y * 0.035) + 'px)';
         applyScrub();
+        applyScene();
+        applyStatement();
       }
       ticking = false;
     });
@@ -142,6 +251,19 @@
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll, { passive: true });
   onScroll();
+
+  // ======================================================================
+  // Cursor spotlight on bento cards (desktop, hover-capable only)
+  // ======================================================================
+  if (!reduced && window.matchMedia('(hover:hover)').matches) {
+    document.querySelectorAll('.bento .card').forEach(function (card) {
+      card.addEventListener('mousemove', function (ev) {
+        var r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', (ev.clientX - r.left) + 'px');
+        card.style.setProperty('--my', (ev.clientY - r.top) + 'px');
+      });
+    });
+  }
 
   // ======================================================================
   // Pointer tilt on the hero phone stack (desktop, hover-capable only)

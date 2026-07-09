@@ -7,7 +7,7 @@
 <meta name="description" content="Env Guardian secures personal Android phones inside restricted zones — blocking unapproved apps, cutting their network with an always-on VPN and verifying presence — then restores full access the instant they leave. No device wipe. No enrollment. BYOD-friendly." />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=3">
+<link rel="stylesheet" href="assets/style.css?v=4">
 </head>
 <body>
 <div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
@@ -70,6 +70,15 @@
   </div>
 </section>
 
+<!-- SCROLL-LIT STATEMENT (pinned; words light with scroll, rewind on scroll-up) -->
+<section class="statement">
+  <div class="st-pin">
+    <div class="wrap">
+      <p class="st-text" data-words>Your building has locked doors. Your network has a firewall. But every pocket that walks in carries a camera, a microphone and the open internet. Env Guardian gives <b>the room itself a policy</b> — and hands the phone back the second you leave.</p>
+    </div>
+  </div>
+</section>
+
 <!-- PROBLEM (split) -->
 <section class="wrap">
   <div class="split">
@@ -125,33 +134,55 @@
     <h2 class="reveal">Everything you need to hold a perimeter</h2>
     <p class="lead center reveal">Eight enforcement layers, enforced <b>natively on-device</b> — they keep working even with the app closed.</p>
   </div>
-  <div class="grid g4">
-    <div class="card reveal pop"><div class="ico">📍</div><h3>Geofenced zones</h3><p>Draw any restricted area as a polygon. Enforcement arms itself only inside it, disarms outside.</p></div>
+  <div class="bento">
+    <div class="card b-lg reveal pop">
+      <div class="ico">📍</div><h3>Geofenced zones</h3>
+      <p>Draw any restricted area as a polygon on the map. Enforcement arms itself only inside it and disarms the moment a device steps out — the boundary itself is the on/off switch.</p>
+      <div class="b-shot"><img src="assets/shots/map-zone.jpeg" alt="Restricted zone drawn as a polygon on the map"></div>
+    </div>
     <div class="card reveal pop"><div class="ico">🛡️</div><h3>Zero-trust blocking</h3><p>Non-whitelisted apps are pushed off-screen instantly by an on-device accessibility enforcer.</p></div>
-    <div class="card reveal pop"><div class="ico">⏱️</div><h3>Per-app time limits</h3><p>Allow an app, but only for X minutes a day — measured from real usage and enforced on-device.</p></div>
-    <div class="card reveal pop"><div class="ico">🔐</div><h3>QR presence auth</h3><p>Confirm a person is physically present with a static or rotating (TOTP) zone QR code.</p></div>
     <div class="card reveal pop"><div class="ico">🌐</div><h3>Always-on network guard</h3><p>A local, no-root VPN cuts internet to unapproved apps in-zone and switches off the moment you leave.</p></div>
+    <div class="card reveal pop"><div class="ico">🔐</div><h3>QR presence auth</h3><p>Confirm a person is physically present with a static or rotating (TOTP) zone QR code.</p></div>
+    <div class="card reveal pop"><div class="ico">⏱️</div><h3>Per-app time limits</h3><p>Allow an app, but only for X minutes a day — measured from real usage and enforced on-device.</p></div>
+    <div class="card b-wide reveal pop">
+      <div class="ico">📊</div><h3>Live compliance</h3>
+      <p>Real-time location, permission and tamper telemetry, a compliance score and one-tap remote lock.</p>
+      <div class="bars" aria-hidden="true"><i style="--h:46"></i><i style="--h:64"></i><i style="--h:52"></i><i style="--h:78"></i><i style="--h:60"></i><i style="--h:88"></i><i style="--h:97"></i></div>
+    </div>
     <div class="card reveal pop"><div class="ico">🚫</div><h3>Anti-theft binding</h3><p>A device is bound to its first owner — a lost or stolen phone can't be re-registered by someone else.</p></div>
-    <div class="card reveal pop"><div class="ico">📊</div><h3>Live compliance</h3><p>Real-time location, permission and tamper telemetry, a compliance score and one-tap remote lock.</p></div>
     <div class="card reveal pop"><div class="ico">⚙️</div><h3>No device wipe</h3><p>Runs on personal phones using only user-granted permissions — no reset, no full-device enrollment.</p></div>
   </div>
   <div class="center" style="margin-top:30px"><a class="btn btn-ghost reveal" href="features.html">See all features in detail →</a></div>
 </section>
 
-<!-- HOW IT WORKS MINI -->
-<section class="wrap">
-  <div class="head center">
-    <span class="eyebrow reveal">How it works</span>
-    <h2 class="reveal">Four steps, fully automatic</h2>
-    <p class="lead center reveal">Set up once. After that the device enforces itself and streams status back in real time.</p>
+<!-- PINNED STORY SCENE (Apple-style scroll scrub — the phone stays put while
+     scrolling picks the frame; scrolling up plays the whole story backwards) -->
+<section class="scene">
+  <div class="scene-pin">
+    <div class="scene-glow sg-a"></div><div class="scene-glow sg-b"></div>
+    <div class="wrap scene-grid">
+      <div class="scene-copy">
+        <span class="eyebrow">Watch it happen</span>
+        <h2>One walk through the door.<br><span class="grad">Keep scrolling.</span></h2>
+        <div class="scene-steps">
+          <div class="s-step on"><span class="k">Step 1 · Outside</span><h3>A normal personal phone</h3><p>Every app works, full internet, zero monitoring. Env Guardian sleeps in the background.</p></div>
+          <div class="s-step"><span class="k">Step 2 · Crossing the boundary</span><h3>The geofence fires</h3><p>Env Guardian steps forward and asks for the zone QR — proof you're physically here.</p></div>
+          <div class="s-step"><span class="k">Step 3 · Inside</span><h3>Secure mode holds</h3><p>Only whitelisted apps run, unapproved apps lose internet, and a live timer tracks time-in-zone.</p></div>
+          <div class="s-step"><span class="k">Step 4 · Always accountable</span><h3>Every attempt is logged</h3><p>Allow/block events stream to the server in real time — a full compliance ledger per device.</p></div>
+        </div>
+        <a class="btn btn-ghost" href="how-it-works.html">Walk through it with screenshots →</a>
+      </div>
+      <div class="scene-phone phone">
+        <div class="s-frames">
+          <img class="s-frame" src="assets/shots/safe-zone.jpeg" alt="Safe zone — the phone is fully personal">
+          <img class="s-frame" src="assets/shots/notif-enter.jpeg" alt="Entering a restricted zone — full-screen prompt">
+          <img class="s-frame" src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer">
+          <img class="s-frame" src="assets/shots/logs.jpeg" alt="Live allow/block compliance log">
+        </div>
+        <div class="s-progress"><i></i></div>
+      </div>
+    </div>
   </div>
-  <div class="grid g4 steps-grid">
-    <div class="card step-card reveal left"><div class="ico">1</div><h3>Enroll once</h3><p>Install, grant the required permissions, and the device is sealed &amp; bound to the employee.</p></div>
-    <div class="card step-card reveal left"><div class="ico">2</div><h3>Enter the zone</h3><p>A geofence trigger brings the app forward — scan the QR to prove you're really there.</p></div>
-    <div class="card step-card reveal right"><div class="ico">3</div><h3>Enforce</h3><p>Only approved apps run; time limits apply; unapproved apps lose internet; everything is logged.</p></div>
-    <div class="card step-card reveal right"><div class="ico">4</div><h3>Leave &amp; restore</h3><p>Cross the boundary and full access returns within seconds. The VPN drops; compliance is reported.</p></div>
-  </div>
-  <div class="center" style="margin-top:30px"><a class="btn btn-ghost reveal" href="how-it-works.html">Walk through it with screenshots →</a></div>
 </section>
 
 <!-- SCREENSHOT SHOWCASE -->
@@ -162,9 +193,9 @@
     <p class="lead center reveal">A clear status screen, a live in-zone timer, an app-block ledger and a zone map — so employees always know exactly what's controlled.</p>
   </div>
   <div class="shot-row">
-    <div class="phone reveal pop" data-scrub="rise" data-scrub-amt="34"><img src="assets/shots/notif-enter.jpeg" alt="Full-screen prompt when entering a restricted zone"></div>
-    <div class="phone reveal pop" data-scrub="rise" data-scrub-amt="58"><img src="assets/shots/logs.jpeg" alt="Live allow/block log feed"></div>
-    <div class="phone reveal pop" data-scrub="rise" data-scrub-amt="34"><img src="assets/shots/armory.jpeg" alt="Admin app whitelist vault"></div>
+    <div class="phone reveal pop" data-scrub="rise" data-scrub-amt="34"><img src="assets/shots/profile.jpeg" alt="Device profile with compliance status"></div>
+    <div class="phone reveal pop" data-scrub="rise" data-scrub-amt="58"><img src="assets/shots/armory.jpeg" alt="Admin app whitelist vault"></div>
+    <div class="phone reveal pop" data-scrub="rise" data-scrub-amt="34"><img src="assets/shots/notif-safe.jpeg" alt="Back in the safe zone — full access restored"></div>
   </div>
 </section>
 
@@ -206,6 +237,6 @@
   </div>
   <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
 </footer>
-<script src="assets/main.js?v=3"></script>
+<script src="assets/main.js?v=4"></script>
 </body>
 </html>
