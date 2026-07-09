@@ -124,43 +124,62 @@
   }
 
   // ======================================================================
-  // Pinned hero — vertical scroll scrubs the phone rail HORIZONTALLY.
-  // The rail's x-position is a pure function of scroll progress, so
-  // scrolling up slides the whole story back to the start. The copy
-  // gently recedes as the rail travels; the scroll hint fades out.
+  // Hero "live perimeter" stage — flips between the safe and secure states
+  // on a loop. CSS transitions handle the crossfades (screen, glow, rings,
+  // card copy); JS just toggles data-state, ticks the in-zone clock and
+  // adds a light pointer parallax on the floating cards + phone.
   // ======================================================================
-  var hero = document.querySelector('.hero .hero-pin') ? document.querySelector('.hero') : null;
-  var heroParts = null;
-  if (hero && !reduced) {
-    heroParts = {
-      track: hero.querySelector('.h-track'),
-      copy: hero.querySelector('.hero-copy'),
-      hint: hero.querySelector('.scroll-hint')
-    };
-    hero.querySelectorAll('.h-card img').forEach(function (img) {
+  var stage = document.querySelector('.stage');
+  if (stage && !reduced) {
+    stage.querySelectorAll('.p2-frames img').forEach(function (img) {
       if (img.decode) img.decode().catch(function () {});
     });
-  }
 
-  function applyHero() {
-    var hp = heroParts;
-    if (!hp || !hp.track) return;
-    var vh = window.innerHeight, vw = window.innerWidth;
-    var r = hero.getBoundingClientRect();
-    var total = r.height - vh;
-    if (total <= 0) return;
-    var p = clamp01(-r.top / total);
-    // rail starts pushed right (first phone peeking in) and ends with the
-    // last phone parked near the left edge
-    var x0 = vw * 0.58;
-    var x1 = -(hp.track.scrollWidth - vw + vw * 0.06);
-    hp.track.style.transform = 'translateX(' + (x0 + (x1 - x0) * p) + 'px)';
-    if (hp.copy) {
-      var cp = clamp01((p - 0.1) / 0.75);
-      hp.copy.style.opacity = String(1 - 0.55 * cp);
-      hp.copy.style.transform = 'translateY(' + (-24 * cp) + 'px) scale(' + (1 - 0.04 * cp) + ')';
+    // state loop: linger longer on the interesting (secure) state
+    var zoneSecs = 872; // 00:14:32
+    var clock = document.getElementById('zone-clock');
+    function fmt(s) {
+      var m = Math.floor(s / 60), ss = s % 60;
+      return '00:' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
     }
-    if (hp.hint) hp.hint.style.opacity = String(1 - clamp01(p / 0.07));
+    setInterval(function () {
+      if (stage.dataset.state === 'secure' && clock) {
+        zoneSecs++;
+        clock.textContent = fmt(zoneSecs);
+      }
+    }, 1000);
+    (function flip() {
+      var secure = stage.dataset.state === 'secure';
+      setTimeout(function () {
+        stage.dataset.state = secure ? 'safe' : 'secure';
+        flip();
+      }, secure ? 4000 : 5500);
+    })();
+
+    // pointer parallax (desktop only): cards drift at different depths
+    if (window.matchMedia('(hover:hover)').matches) {
+      var layers = [
+        { el: stage.querySelector('.fc1'), d: 16 },
+        { el: stage.querySelector('.fc2'), d: 22 },
+        { el: stage.querySelector('.fc3'), d: 19 },
+        { el: stage.querySelector('.fc4'), d: 26 },
+        { el: stage.querySelector('.rings'), d: 8 }
+      ].filter(function (l) { return l.el; });
+      stage.addEventListener('mousemove', function (ev) {
+        var r = stage.getBoundingClientRect();
+        var x = (ev.clientX - r.left) / r.width - 0.5;
+        var y = (ev.clientY - r.top) / r.height - 0.5;
+        layers.forEach(function (l) {
+          var extra = l.el.classList.contains('rings') ? ' translate(-50%,-50%)' : '';
+          l.el.style.transform = 'translate(' + (-x * l.d) + 'px,' + (-y * l.d) + 'px)' + extra;
+        });
+      });
+      stage.addEventListener('mouseleave', function () {
+        layers.forEach(function (l) {
+          l.el.style.transform = l.el.classList.contains('rings') ? 'translate(-50%,-50%)' : '';
+        });
+      });
+    }
   }
 
   // ======================================================================
@@ -282,7 +301,6 @@
         if (b2) b2.style.transform = 'translateY(' + (-y * 0.05) + 'px)';
         if (b3) b3.style.transform = 'translateY(' + (y * 0.035) + 'px)';
         applyScrub();
-        applyHero();
         applyScene();
         applyStatement();
       }

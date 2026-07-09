@@ -101,56 +101,99 @@ h3{font-size:20px}
      transition:transform .45s var(--spring)}
 .card h3{margin:16px 0 6px}.card p{margin:0;color:var(--muted);font-size:14.5px}
 
-/* ===== Hero — pinned, horizontally scrubbed (vertical scroll slides the
-   phone rail sideways through the story; scrolling up slides it back) ===== */
-.hero{height:340vh;padding:0;position:relative}
-.hero-pin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column;
-          justify-content:center;gap:2.2vh;padding-top:82px}
-.hero-copy{text-align:center;max-width:920px;margin:0 auto;padding:0 22px;will-change:transform,opacity}
-.hero-copy h1{font-size:clamp(32px,4.5vw,54px);margin:14px 0 10px}
+/* ===== Hero — "live perimeter" stage: one phone inside geofence rings,
+   floating status cards around it. data-state="safe|secure" flips the
+   screen, glow, rings and card copy together (JS toggles it on a loop). */
+.hero{padding:46px 0 30px;overflow:hidden}
+.hero-copy{text-align:center;max-width:920px;margin:0 auto}
+.hero-copy h1{font-size:clamp(32px,4.6vw,56px);margin:14px 0 10px}
 .hero-copy .lead{margin:0 auto;max-width:660px}
 .hero-copy .cta{justify-content:center;margin-top:20px}
-.h-rail{width:100%}
-.h-track{display:flex;align-items:flex-start;gap:clamp(18px,2.4vw,30px);width:max-content;
-         padding:8px 4px 18px;will-change:transform}
-.h-card{margin:0;text-align:center}
-.h-card:nth-child(even){transform:translateY(14px)}
-.h-card .phone{width:clamp(136px,17.5vh,200px);padding:9px;border-radius:30px}
-.h-card .phone::before{width:60px;height:12px;top:11px}
-.h-card .phone img{border-radius:22px}
-.h-cap{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:6px 14px;border-radius:999px;
-       background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm);
-       font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
-.h-cap b{color:var(--accent);font-weight:800;font-family:Outfit,sans-serif}
-.scroll-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;
-       flex-direction:column;align-items:center;gap:7px;color:var(--muted);
-       font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
-.sh-line{width:2px;height:32px;border-radius:2px;background:linear-gradient(180deg,var(--accent),transparent);
-       transform-origin:top;animation:shline 1.7s ease-in-out infinite}
-@keyframes shline{0%{transform:scaleY(0);opacity:1}60%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
-@media(max-width:900px){
-  .hero{height:300vh}
-  .hero-pin{padding-top:84px;gap:1.6vh}
-  .hero-copy h1{font-size:clamp(28px,7.4vw,36px)}
-  .hero-copy .lead{font-size:14.5px;max-width:400px}
-  .hero-copy .cta{margin-top:14px}
-  .hero-copy .btn{padding:11px 18px;font-size:13.5px}
-  .h-card .phone{width:clamp(104px,14.5vh,132px);padding:7px;border-radius:24px}
-  .h-card .phone::before{width:44px;height:9px;top:9px}
-  .h-card .phone img{border-radius:18px}
-  .h-cap{font-size:11.5px;padding:5px 11px;margin-top:8px}
+
+.stage{position:relative;max-width:1160px;margin:26px auto 0;height:clamp(430px,58vh,560px);
+       display:grid;place-items:center}
+/* state-dependent glow behind the phone */
+.stage::before{content:"";position:absolute;width:640px;height:520px;border-radius:50%;filter:blur(70px);
+       background:radial-gradient(closest-side,rgba(20,184,166,.20),transparent 70%);transition:background 1s}
+.stage[data-state="secure"]::before{background:radial-gradient(closest-side,rgba(79,110,247,.24),transparent 70%)}
+
+/* geofence rings + radar sweep */
+.rings,.rings i,.sweep{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);border-radius:50%}
+.rings{width:0;height:0}
+.rings i{border:1.5px dashed rgba(20,184,166,.35);transition:border-color 1s}
+.rings i:nth-child(1){width:340px;height:340px}
+.rings i:nth-child(2){width:520px;height:520px;opacity:.7}
+.rings i:nth-child(3){width:700px;height:700px;opacity:.45}
+.stage[data-state="secure"] .rings i{border-color:rgba(79,110,247,.4)}
+.sweep{width:700px;height:700px;background:conic-gradient(from 0deg,rgba(79,110,247,.10),transparent 26%);
+       animation:sweep 8s linear infinite;
+       -webkit-mask-image:radial-gradient(circle,transparent 46%,#000 47%);
+       mask-image:radial-gradient(circle,transparent 46%,#000 47%)}
+@keyframes sweep{to{transform:translate(-50%,-50%) rotate(360deg)}}
+
+/* current-state pill */
+.state-badge{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:4;
+       padding:8px 18px;border-radius:999px;background:rgba(255,255,255,.85);border:1px solid var(--line);
+       backdrop-filter:blur(10px);box-shadow:var(--shadow-sm);font-size:13px;font-weight:700;white-space:nowrap}
+.state-badge .swap{min-width:250px}
+
+/* crossfading text driven by data-state */
+.swap{display:inline-grid;text-align:inherit}
+div.swap{display:grid;justify-items:start}
+.swap>span{grid-area:1/1;transition:opacity .55s ease}
+.stage[data-state="safe"] .sw-b{opacity:0}
+.stage[data-state="secure"] .sw-a{opacity:0}
+
+/* centre phone with crossfading screen */
+.stage-phone{width:clamp(180px,30vh,236px);padding:10px;border-radius:32px;z-index:2;margin-top:34px}
+.stage-phone::before{width:64px;height:12px;top:12px}
+.p2-frames{position:relative;aspect-ratio:9/19;border-radius:24px;overflow:hidden;background:#0f172a}
+.p2-frames .scr{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;
+       transition:opacity 1s ease}
+.stage[data-state="safe"] .scr-secure{opacity:0}
+.stage[data-state="secure"] .scr-safe{opacity:0}
+
+/* floating status cards */
+.fc{position:absolute;z-index:3;will-change:transform}
+.fc1{left:6%;top:16%}
+.fc2{left:9%;bottom:12%}
+.fc3{right:7%;top:18%}
+.fc4{right:8%;bottom:14%}
+.fc-in{display:flex;gap:12px;align-items:flex-start;padding:14px 17px;border-radius:18px;
+       background:rgba(255,255,255,.86);border:1px solid rgba(255,255,255,.95);backdrop-filter:blur(14px);
+       box-shadow:var(--shadow);animation:bob 7s ease-in-out infinite}
+.fc2 .fc-in{animation-delay:-2.2s}.fc3 .fc-in{animation-delay:-4.1s}.fc4 .fc-in{animation-delay:-5.6s}
+.fc-ico{width:42px;height:42px;flex:0 0 42px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+       font-size:20px;background:linear-gradient(135deg,rgba(79,110,247,.10),rgba(20,184,166,.10))}
+.fc-ico.grad-num{font-family:Outfit,sans-serif;font-weight:800;font-size:14px;
+       background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.fc-k{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.fc-t{font-family:Outfit,sans-serif;font-weight:700;font-size:14.5px;color:var(--ink);margin-top:1px}
+.fc-s{font-size:12px;color:var(--muted);margin-top:1px}
+.mono{font-variant-numeric:tabular-nums;letter-spacing:.04em}
+/* the card that matters in the current state lifts and tints */
+.fc .fc-in{transition:border-color .6s,box-shadow .6s,transform .6s var(--spring)}
+.stage[data-state="secure"] .fc1 .fc-in,
+.stage[data-state="secure"] .fc2 .fc-in,
+.stage[data-state="secure"] .fc4 .fc-in{border-color:rgba(79,110,247,.4);box-shadow:0 18px 44px -10px rgba(79,110,247,.35)}
+.stage[data-state="safe"] .fc4 .fc-in{border-color:rgba(20,184,166,.45);box-shadow:0 18px 44px -10px rgba(20,184,166,.3)}
+
+@media(max-width:980px){
+  .fc1{left:2%}.fc2{left:3%}.fc3{right:2%}.fc4{right:2%}
 }
-/* short laptop screens: shrink everything so nothing clips during the pin */
-@media(max-height:820px){
-  .hero-copy h1{font-size:clamp(28px,4vw,42px)}
-  .hero-copy .lead{font-size:14.5px;max-width:580px}
-  .h-card .phone{width:clamp(118px,15.5vh,170px)}
+@media(max-width:760px){
+  .hero{padding-top:36px}
+  .hero-copy .lead{font-size:15px;max-width:420px}
+  /* floating cards would collide with the phone at this width — the ringed
+     state-flipping phone carries the hero alone */
+  .fc{display:none}
+  .stage{height:clamp(390px,48vh,460px)}
+  .stage-phone{width:clamp(150px,24vh,176px);margin-top:52px}
+  .rings i:nth-child(1){width:250px;height:250px}
+  .rings i:nth-child(2){width:400px;height:400px}
+  .rings i:nth-child(3),.sweep{width:560px;height:560px}
+  .state-badge{font-size:11.5px;padding:7px 13px}.state-badge .swap{min-width:210px}
 }
-/* hero collapses to a natively swipeable rail without JS / with reduced motion */
-html:not(.js) .hero{height:auto}
-html:not(.js) .hero-pin{position:static;height:auto;padding:110px 0 40px}
-html:not(.js) .h-rail{overflow-x:auto}
-html:not(.js) .scroll-hint{display:none}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;background:#fff;
       border:1px solid var(--line);font-size:13px;color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
 .pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent2);
@@ -393,11 +436,8 @@ html:not(.js) .st-text .w{color:inherit}
 
 @media(prefers-reduced-motion:reduce){
   html.js .reveal,.h-line>span{opacity:1;transform:none;animation:none;transition:none}
-  .blob,.float,.blink,.wave,.m-track,.pill::before,.sh-line{animation:none}
-  .hero{height:auto}
-  .hero-pin{position:static;height:auto;padding:110px 0 40px}
-  .h-rail{overflow-x:auto}
-  .scroll-hint{display:none}
+  .blob,.float,.blink,.wave,.m-track,.pill::before,.sweep,.fc-in{animation:none}
+  .swap>span,.p2-frames .scr,.rings i,.stage::before{transition:none}
   .scene,.statement{height:auto}
   .scene-pin,.st-pin{position:static;height:auto;min-height:0;padding:84px 0}
   .s-step{opacity:1;transform:none;transition:none}

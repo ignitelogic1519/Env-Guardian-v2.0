@@ -7,7 +7,7 @@
 <meta name="description" content="Env Guardian secures personal Android phones inside restricted zones — blocking unapproved apps, cutting their network with an always-on VPN and verifying presence — then restores full access the instant they leave. No device wipe. No enrollment. BYOD-friendly." />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=6">
 </head>
 <body>
 <div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
@@ -28,30 +28,64 @@
   </div>
 </nav>
 
-<!-- HERO — pinned; vertical scroll drives the phone rail HORIZONTALLY through
-     the six-screen story (and back again on scroll-up). No stacked mockups. -->
+<!-- HERO — "live perimeter" stage. One phone inside animated geofence rings,
+     orbited by floating status cards. The whole stage flips between the
+     safe and secure states on a loop: screen, glow, rings and cards together. -->
 <header class="hero">
-  <div class="hero-pin">
-    <div class="hero-copy">
-      <span class="pill reveal">BYOD Mobile Device Management · Android</span>
-      <h1><span class="h-line"><span>Secure zones. Personal phones.</span></span><span class="h-line"><span class="grad">Zero compromise.</span></span></h1>
-      <p class="lead reveal">Step into a restricted zone and unapproved apps are blocked, their internet is cut and presence is verified. Walk out, and the phone is instantly personal again. <b>No wipe. No enrollment.</b></p>
-      <div class="cta reveal">
-        <a class="btn btn-primary" href="how-it-works.html">See how it works →</a>
-        <a class="btn btn-ghost" href="features.html">Explore features</a>
+  <div class="hero-copy wrap">
+    <span class="pill reveal">BYOD Mobile Device Management · Android</span>
+    <h1><span class="h-line"><span>Secure zones. Personal phones.</span></span><span class="h-line"><span class="grad">Zero compromise.</span></span></h1>
+    <p class="lead reveal">Step into a restricted zone and unapproved apps are blocked, their internet is cut and presence is verified. Walk out, and the phone is instantly personal again. <b>No wipe. No enrollment.</b></p>
+    <div class="cta reveal">
+      <a class="btn btn-primary" href="how-it-works.html">See how it works →</a>
+      <a class="btn btn-ghost" href="features.html">Explore features</a>
+    </div>
+  </div>
+
+  <div class="stage" data-state="safe">
+    <div class="rings" aria-hidden="true"><i></i><i></i><i></i><span class="sweep"></span></div>
+    <div class="state-badge" aria-live="polite">
+      <span class="swap"><span class="sw-a">🟢 Safe zone — full personal access</span><span class="sw-b">🔴 Restricted zone — policy active</span></span>
+    </div>
+
+    <div class="stage-phone phone" data-scrub="rise" data-scrub-amt="26">
+      <div class="p2-frames">
+        <img class="scr scr-safe" src="assets/shots/safe-zone.jpeg" alt="Phone outside the zone — fully personal">
+        <img class="scr scr-secure" src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer">
       </div>
     </div>
-    <div class="h-rail">
-      <div class="h-track">
-        <figure class="h-card"><div class="phone"><img src="assets/shots/map-zone.jpeg" alt="Restricted zone drawn as a polygon on the map"></div><figcaption class="h-cap"><b>01</b> Draw the zone</figcaption></figure>
-        <figure class="h-card"><div class="phone"><img src="assets/shots/notif-enter.jpeg" alt="Full-screen prompt on entering the restricted zone"></div><figcaption class="h-cap"><b>02</b> Boundary detected</figcaption></figure>
-        <figure class="h-card"><div class="phone"><img src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer"></div><figcaption class="h-cap"><b>03</b> Secure mode on</figcaption></figure>
-        <figure class="h-card"><div class="phone"><img src="assets/shots/logs.jpeg" alt="Live allow/block compliance ledger"></div><figcaption class="h-cap"><b>04</b> Every attempt logged</figcaption></figure>
-        <figure class="h-card"><div class="phone"><img src="assets/shots/armory.jpeg" alt="Admin app whitelist vault"></div><figcaption class="h-cap"><b>05</b> Approve your apps</figcaption></figure>
-        <figure class="h-card"><div class="phone"><img src="assets/shots/notif-safe.jpeg" alt="Back in the safe zone — full access restored"></div><figcaption class="h-cap"><b>06</b> Freedom restored</figcaption></figure>
+
+    <div class="fc fc1"><div class="fc-in reveal pop">
+      <div class="fc-ico">🛰️</div>
+      <div><div class="fc-k">Geofence</div>
+        <div class="fc-t swap"><span class="sw-a">Outside the boundary</span><span class="sw-b">Restricted Zone Entered</span></div>
+        <div class="fc-s swap"><span class="sw-a">Enforcement disarmed</span><span class="sw-b">Scan zone QR to authenticate</span></div>
       </div>
-    </div>
-    <div class="scroll-hint" aria-hidden="true">Scroll<span class="sh-line"></span></div>
+    </div></div>
+
+    <div class="fc fc2"><div class="fc-in reveal pop">
+      <div class="fc-ico">🌐</div>
+      <div><div class="fc-k">Network guard</div>
+        <div class="fc-t swap"><span class="sw-a">VPN off · nothing blocked</span><span class="sw-b">Internet cut · 42 apps</span></div>
+        <div class="fc-s swap"><span class="sw-a">Your data stays yours</span><span class="sw-b">Always-on local VPN, no root</span></div>
+      </div>
+    </div></div>
+
+    <div class="fc fc3"><div class="fc-in reveal pop">
+      <div class="fc-ico grad-num">98%</div>
+      <div><div class="fc-k">Compliance</div>
+        <div class="fc-t">Device compliant</div>
+        <div class="fc-s">Live telemetry · tamper checks</div>
+      </div>
+    </div></div>
+
+    <div class="fc fc4"><div class="fc-in reveal pop">
+      <div class="fc-ico">⏱️</div>
+      <div><div class="fc-k swap"><span class="sw-a">Ready</span><span class="sw-b">Time in zone</span></div>
+        <div class="fc-t swap"><span class="sw-a">Access restored</span><span class="sw-b mono" id="zone-clock">00:14:32</span></div>
+        <div class="fc-s">Flips back the second you leave</div>
+      </div>
+    </div></div>
   </div>
 </header>
 
@@ -240,6 +274,6 @@
   </div>
   <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
 </footer>
-<script src="assets/main.js?v=5"></script>
+<script src="assets/main.js?v=6"></script>
 </body>
 </html>
