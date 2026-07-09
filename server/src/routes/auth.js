@@ -42,11 +42,15 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ success: false, error: "Organisation name does not match." });
     }
 
-    // Update last_login
+    // Update last_login + record a login event (dashboard metrics)
     await pool.query(
       "UPDATE public.users SET last_login = $1 WHERE id = $2",
       [Date.now(), user.id]
     );
+    pool.query(
+      "INSERT INTO public.login_events (user_id, username, role, ts) VALUES ($1, $2, $3, $4)",
+      [user.id, user.username, user.role, Date.now()]
+    ).catch((e) => console.warn("[AUTH] login_events insert failed:", e.message));
 
     // Issue JWT
     const token = jwt.sign(

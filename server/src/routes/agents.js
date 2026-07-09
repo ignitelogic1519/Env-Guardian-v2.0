@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const crypto = require("crypto");
 const pool = require("../db/pool");
-const { requireApiKey, requireAuth } = require("../middleware/auth");
+const { requireApiKey, requireAuth, requireRole } = require("../middleware/auth");
 const { enrichAgent } = require("../utils/agentMetrics");
 
 // Feature F: per-device auth token. Issued at registration. Enforcement is
@@ -337,9 +337,93 @@ router.get("/dashboard/agents/:empId", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/dashboard/metrics
+// Fleet-wide numbers for the dashboard metrics page: device totals, online,
+// in-zone, lock states, compliant vs non-compliant, and dashboard login counts.
+router.get("/dashboard/metrics", requireAuth, async (req, res) => {
+  try {
+    const agentsQ = await pool.query(
+      `SELECT emp_id, emp_name, in_zone, admin_lock, auto_lock,
+              enforcer_active, last_pulse, compliance_status
+       FROM public.agents`
+    );
+    const agents = agentsQ.rows.map(enrichAgent);
+
+    const total     = agents.length;
+    const online    = agents.filter((a) => a.is_online).length;
+    const inZone    = agents.filter((a) => a.in_zone).length;
+    const locked    = agents.filter((a) => a.admin_lock || a.auto_lock).length;
+    const compliant = agents.filter((a) => a.policy_status === "PASS").length;
+
+    // Login events: today's count, total, and a per-day series (last 14 days).
+    const dayMs = 86400000;
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const since = startOfToday.getTime() - 13 * dayMs;
+    let loginsToday = 0, loginsTotal = 0;
+    const loginSeries = [];
+    try {
+      const totQ = await pool.query("SELECT COUNT(*)::int AS n FROM public.login_events");
+      loginsTotal = totQ.rows[0]?.n || 0;
+      const evQ = await pool.query(
+        "SELECT ts FROM public.login_events WHERE ts >= $1", [since]
+      );
+      const perDay = new Array(14).fill(0);
+      for (const r of evQ.rows) {
+        const i = Math.floor((parseInt(r.ts, 10) - since) / dayMs);
+        if (i >= 0 && i < 14) perDay[i]++;
+      }
+      for (let i = 0; i < 14; i++) {
+        loginSeries.push({
+          date: new Date(since + i * dayMs).toISOString().slice(0, 10),
+          count: perDay[i],
+        });
+      }
+      loginsToday = perDay[13];
+    } catch (e) {
+      console.warn("[METRICS] login_events unavailable:", e.message);
+    }
+
+    // Top apps used today across the fleet.
+    let topApps = [];
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const appsQ = await pool.query(
+        `SELECT package, SUM(total_ms)::bigint AS total_ms, COUNT(DISTINCT emp_id)::int AS devices
+         FROM public.app_usage WHERE date = $1
+         GROUP BY package ORDER BY total_ms DESC LIMIT 8`,
+        [today]
+      );
+      topApps = appsQ.rows.map((r) => ({
+        package: r.package,
+        total_ms: parseInt(r.total_ms, 10) || 0,
+        devices: r.devices,
+      }));
+    } catch (e) {
+      console.warn("[METRICS] app_usage unavailable:", e.message);
+    }
+
+    res.json({
+      success: true,
+      generated_at: Date.now(),
+      devices: { total, online, offline: total - online, in_zone: inZone, locked,
+                 compliant, non_compliant: total - compliant },
+      compliance: agents.map((a) => ({
+        emp_id: a.emp_id, emp_name: a.emp_name,
+        score: a.compliance_score, status: a.policy_status,
+        online: a.is_online, in_zone: a.in_zone,
+      })),
+      logins: { today: loginsToday, total: loginsTotal, series: loginSeries },
+      top_apps: topApps,
+    });
+  } catch (err) {
+    console.error("[DASHBOARD] Metrics error:", err.message);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
 // POST /api/dashboard/toggle-lock
 // Body: { empId, lockStatus: boolean }
-router.post("/dashboard/toggle-lock", requireAuth, async (req, res) => {
+router.post("/dashboard/toggle-lock", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { empId, lockStatus } = req.body;
     if (empId === undefined || lockStatus === undefined) {
@@ -364,12 +448,13 @@ router.post("/dashboard/toggle-lock", requireAuth, async (req, res) => {
 });
 
 // DELETE /api/dashboard/agents/:empId
-// Permanently removes a device (and its app-usage history) from the database.
-router.delete("/dashboard/agents/:empId", requireAuth, async (req, res) => {
+// Permanently removes a device (unenrollment) — usage history + policies too.
+router.delete("/dashboard/agents/:empId", requireAuth, requireRole("admin"), async (req, res) => {
   try {
     const { empId } = req.params;
-    // Remove dependent app-usage rows first (no FK, so clean up manually).
+    // Remove dependent rows first (no FK, so clean up manually).
     await pool.query("DELETE FROM public.app_usage WHERE emp_id = $1", [empId]);
+    await pool.query("DELETE FROM public.app_policies WHERE emp_id = $1", [empId]);
     const result = await pool.query(
       "DELETE FROM public.agents WHERE emp_id = $1 RETURNING emp_id, emp_name",
       [empId]
@@ -387,7 +472,7 @@ router.delete("/dashboard/agents/:empId", requireAuth, async (req, res) => {
 
 // POST /api/dashboard/update-whitelist
 // Body: { empId, whitelist: string[] }
-router.post("/dashboard/update-whitelist", requireAuth, async (req, res) => {
+router.post("/dashboard/update-whitelist", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { empId, whitelist } = req.body;
     if (!empId || !Array.isArray(whitelist)) {

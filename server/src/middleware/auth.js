@@ -44,4 +44,17 @@ const requireAuth = (req, res, next) => {
   return res.status(401).json({ success: false, error: "Unauthorized" });
 };
 
-module.exports = { requireApiKey, requireJWT, requireAuth };
+// Role gate for dashboard mutations. Runs AFTER requireAuth.
+// - API-key callers (the APK / trusted automation) have no role → allowed
+//   (preserves existing device behaviour).
+// - JWT callers must hold one of the allowed roles (from the users table).
+const requireRole = (...roles) => (req, res, next) => {
+  if (!req.admin) return next(); // authenticated via x-api-key
+  if (roles.includes(req.admin.role)) return next();
+  return res.status(403).json({
+    success: false,
+    error: `Forbidden: requires role ${roles.join(" or ")} (you are ${req.admin.role})`,
+  });
+};
+
+module.exports = { requireApiKey, requireJWT, requireAuth, requireRole };

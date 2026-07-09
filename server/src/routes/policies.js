@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const pool = require("../db/pool");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireRole } = require("../middleware/auth");
 
 // ─── PER-APP TIME-LIMIT POLICIES ───────────────────────────────────────────────
 // An admin defines, per employee, which apps are allowed inside the zone and for
@@ -43,7 +43,7 @@ router.get("/:empId", requireAuth, async (req, res) => {
 // PUT /api/policies/:empId/app
 // Body: { package, daily_limit_ms, enabled }
 // Creates or updates one app's policy for this employee.
-router.put("/:empId/app", requireAuth, async (req, res) => {
+router.put("/:empId/app", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { empId } = req.params;
     const { package: pkg, daily_limit_ms, enabled } = req.body;
@@ -72,7 +72,7 @@ router.put("/:empId/app", requireAuth, async (req, res) => {
 
 // DELETE /api/policies/:empId/app/:package
 // Removes one app's policy for this employee.
-router.delete("/:empId/app/:package", requireAuth, async (req, res) => {
+router.delete("/:empId/app/:package", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { empId, package: pkg } = req.params;
     const result = await pool.query(
@@ -91,7 +91,7 @@ router.delete("/:empId/app/:package", requireAuth, async (req, res) => {
 
 // PUT /api/policies/:empId/feature-flags
 // Body: { feature_flags: { ... } }  — sets the per-user "special key".
-router.put("/:empId/feature-flags", requireAuth, async (req, res) => {
+router.put("/:empId/feature-flags", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { empId } = req.params;
     const { feature_flags } = req.body;

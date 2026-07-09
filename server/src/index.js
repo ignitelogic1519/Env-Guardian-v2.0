@@ -22,6 +22,10 @@ try { policiesRoutes = require("./routes/policies"); } catch(e) { console.log("p
 let aegisRoutes;
 try { aegisRoutes = require("./routes/aegis"); } catch(e) { console.log("aegis route not found, skipping"); }
 
+// Dashboard user management (admin only) — optional.
+let usersRoutes;
+try { usersRoutes = require("./routes/users"); } catch(e) { console.log("users route not found, skipping"); }
+
 const app  = express();
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === "production";
@@ -89,6 +93,7 @@ app.use("/api",            settingsRoutes);
 if (appUsageRoutes) app.use("/api/app-usage", appUsageRoutes);
 if (policiesRoutes) app.use("/api/policies", policiesRoutes);
 if (aegisRoutes) app.use("/api/aegis", aegisRoutes);
+if (usersRoutes) app.use("/api/users", usersRoutes);
 
 // ─── HEALTH ──────────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {

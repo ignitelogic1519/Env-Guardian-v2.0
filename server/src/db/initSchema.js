@@ -91,6 +91,14 @@ const STATEMENTS = [
      updated_at       bigint,
      whitelisted_apps jsonb DEFAULT '[]'::jsonb
    )`,
+  // Dashboard login audit — powers the "number of logins" metric.
+  `CREATE TABLE IF NOT EXISTS public.login_events (
+     id        SERIAL PRIMARY KEY,
+     user_id   integer,
+     username  varchar(50),
+     role      varchar(20),
+     ts        bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
+   )`,
 
   // ── Column backfills for older databases (schema drift) ───────────────────
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS user_id integer`,
@@ -136,6 +144,7 @@ const STATEMENTS = [
   // One policy row per (employee, app). Powers upserts from the dashboard.
   `CREATE UNIQUE INDEX IF NOT EXISTS app_policies_emp_pkg_key ON public.app_policies (emp_id, package)`,
   `CREATE INDEX IF NOT EXISTS idx_app_policies_emp ON public.app_policies (emp_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_login_events_ts ON public.login_events (ts DESC)`,
 ];
 
 // Default restricted zone (Zone 1 — Surat, Gujarat).

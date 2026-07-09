@@ -22,6 +22,8 @@ resumes.
 env-guardian-v2.0/
 ├── app/                # Flutter mobile app (the device agent)
 ├── server/             # Node.js + Express API + PostgreSQL schema
+├── dashboard/          # Web admin console (static SPA, role-based) — host separately
+├── website/            # Marketing website (static)
 ├── README.md           # this file
 ├── BACKLOG.md          # planned / not-yet-built features
 └── ADMIN_DB_GUIDE.md   # how to administer the system via the database (SQL)
@@ -120,10 +122,16 @@ env-guardian-v2.0/
 - **Idempotent schema bootstrap** — creates/upgrades all tables on startup, so a
   fresh Neon database is provisioned automatically.
 
-### 14. Database-driven administration
-- Until a web dashboard exists, **all admin tasks are done via SQL** — geofence,
-  whitelists, time limits, feature keys, lock/unlock, QR/password, device removal.
-- Full copy-paste cookbook in **[`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)**.
+### 14. Web admin console (role-based)
+- **[`dashboard/`](dashboard/README.md)** — an online admin console (static SPA,
+  hosted separately for free) covering devices, per-device admin, policy
+  controller, QR settings (static/TOTP), enrollment/unenrollment, users & roles
+  and a metrics page (logins, compliant vs non-compliant, top apps).
+- Access groups come from the database (`users.role`: `admin` / `manager` /
+  `viewer`) and are enforced server-side (`requireRole`).
+- Deploy guide: **[`dashboard/DEPLOYMENT.md`](dashboard/DEPLOYMENT.md)**.
+- The SQL cookbook in **[`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)** still works as
+  a fallback for direct database administration.
 
 ---
 
@@ -138,7 +146,7 @@ marked experimental until verified on real hardware.
 | A | Pre-scan clean-state gate (close running apps before QR) | ✅ Shipped (Notification Access — **now mandatory** for compliance) |
 | B | VPN per-app network control (block internet in-zone) | ✅ Shipped — **always-on**: one-time consent at setup, auto-activates in-zone, no in-app disable, background-managed, time-limit-aware, tamper-reported (**experimental, test on device**) |
 | C | Auto-foreground on zone entry | ✅ Shipped (full-screen prompt; geofence-wake = future) |
-| D | Admin dashboard (web) | ⏸ Deferred — admin is DB-driven ([`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)) |
+| D | Admin dashboard (web) | ✅ Shipped — role-based console in [`dashboard/`](dashboard/README.md) (deploy guide: [`dashboard/DEPLOYMENT.md`](dashboard/DEPLOYMENT.md)); SQL guide remains as fallback |
 | E | OEM background reliability | ✅ Auto-start helper shipped — **now a mandatory acknowledgement**; opens via a grace window so the enforcer doesn't bounce you out (watchdog = future) |
 | F | Per-device auth tokens | ✅ Shipped — issued now; enforce via `ENFORCE_DEVICE_TOKEN=true` |
 | G | Rotating (TOTP) QR | ✅ Shipped, opt-in (`qr_mode='totp'`; needs a live display) |
@@ -193,6 +201,8 @@ whitelist apps, configure time limits, and lock/unlock devices.
 ## Documentation index
 - **[`app/README.md`](app/README.md)** — app structure (feature-first layout)
 - **[`server/README.md`](server/README.md)** — backend overview
+- **[`dashboard/README.md`](dashboard/README.md)** — admin console features + RBAC matrix
+- **[`dashboard/DEPLOYMENT.md`](dashboard/DEPLOYMENT.md)** — free-hosting deploy guide
 - **[`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)** — administer via the database
 - **[`TEST_CASES.md`](TEST_CASES.md)** — granular QA cases + server smoke tests
 - **[`QA_CHECKLIST.md`](QA_CHECKLIST.md)** — end-to-end user-story integrity checklist

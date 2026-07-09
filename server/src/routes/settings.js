@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const crypto = require("crypto");
 const pool = require("../db/pool");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireRole } = require("../middleware/auth");
 
 // Rotating-QR (feature G) helper. When qr_mode = 'totp', the valid QR value is a
 // time-based code derived from qr_secret (30s window) instead of the static
@@ -59,7 +59,7 @@ router.get("/settings", requireAuth, async (req, res) => {
 
 // PUT /api/settings/geofence
 // Body: { polygon: [{lat, lng}] }
-router.put("/settings/geofence", requireAuth, async (req, res) => {
+router.put("/settings/geofence", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { polygon } = req.body;
     if (!Array.isArray(polygon) || polygon.length < 3) {
@@ -80,7 +80,7 @@ router.put("/settings/geofence", requireAuth, async (req, res) => {
 
 // PUT /api/settings/whitelisted-apps
 // Body: { apps: string[] }
-router.put("/settings/whitelisted-apps", requireAuth, async (req, res) => {
+router.put("/settings/whitelisted-apps", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { apps } = req.body;
     if (!Array.isArray(apps)) {
@@ -102,7 +102,7 @@ router.put("/settings/whitelisted-apps", requireAuth, async (req, res) => {
 // PUT /api/settings/admin-password
 // Body: { oldPassword, password }
 // Requires the current admin password before changing it.
-router.put("/settings/admin-password", requireAuth, async (req, res) => {
+router.put("/settings/admin-password", requireAuth, requireRole("admin"), async (req, res) => {
   try {
     const { oldPassword, password } = req.body;
     if (!password || typeof password !== "string" || password.trim().length < 4) {
@@ -127,7 +127,7 @@ router.put("/settings/admin-password", requireAuth, async (req, res) => {
 
 // PUT /api/settings/qr-secret
 // Body: { qr_secret }  — updates the zone QR code value
-router.put("/settings/qr-secret", requireAuth, async (req, res) => {
+router.put("/settings/qr-secret", requireAuth, requireRole("admin"), async (req, res) => {
   try {
     const { qr_secret } = req.body;
     if (!qr_secret || typeof qr_secret !== "string" || !qr_secret.trim()) {
@@ -140,6 +140,25 @@ router.put("/settings/qr-secret", requireAuth, async (req, res) => {
     res.json({ success: true, qr_secret: result.rows[0]?.qr_secret });
   } catch (err) {
     console.error("[SETTINGS] Update QR secret error:", err.message);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// PUT /api/settings/qr-mode
+// Body: { qr_mode: 'static' | 'totp' }  — feature G rotation toggle
+router.put("/settings/qr-mode", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const { qr_mode } = req.body;
+    if (!["static", "totp"].includes(qr_mode)) {
+      return res.status(400).json({ success: false, error: "qr_mode must be 'static' or 'totp'" });
+    }
+    const result = await pool.query(
+      "UPDATE public.system_settings SET qr_mode = $1, updated_at = $2 WHERE id = 1 RETURNING qr_mode",
+      [qr_mode, Date.now()]
+    );
+    res.json({ success: true, qr_mode: result.rows[0]?.qr_mode });
+  } catch (err) {
+    console.error("[SETTINGS] Update QR mode error:", err.message);
     res.status(500).json({ success: false, error: "Server error" });
   }
 });
