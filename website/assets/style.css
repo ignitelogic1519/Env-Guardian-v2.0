@@ -101,10 +101,56 @@ h3{font-size:20px}
      transition:transform .45s var(--spring)}
 .card h3{margin:16px 0 6px}.card p{margin:0;color:var(--muted);font-size:14.5px}
 
-/* ===== Hero ===== */
-.hero{padding:56px 0 34px}
-.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
-@media(max-width:900px){.hero-grid{grid-template-columns:1fr;text-align:center}.hero .lead{margin-inline:auto}}
+/* ===== Hero — pinned, horizontally scrubbed (vertical scroll slides the
+   phone rail sideways through the story; scrolling up slides it back) ===== */
+.hero{height:340vh;padding:0;position:relative}
+.hero-pin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column;
+          justify-content:center;gap:2.2vh;padding-top:82px}
+.hero-copy{text-align:center;max-width:920px;margin:0 auto;padding:0 22px;will-change:transform,opacity}
+.hero-copy h1{font-size:clamp(32px,4.5vw,54px);margin:14px 0 10px}
+.hero-copy .lead{margin:0 auto;max-width:660px}
+.hero-copy .cta{justify-content:center;margin-top:20px}
+.h-rail{width:100%}
+.h-track{display:flex;align-items:flex-start;gap:clamp(18px,2.4vw,30px);width:max-content;
+         padding:8px 4px 18px;will-change:transform}
+.h-card{margin:0;text-align:center}
+.h-card:nth-child(even){transform:translateY(14px)}
+.h-card .phone{width:clamp(136px,17.5vh,200px);padding:9px;border-radius:30px}
+.h-card .phone::before{width:60px;height:12px;top:11px}
+.h-card .phone img{border-radius:22px}
+.h-cap{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:6px 14px;border-radius:999px;
+       background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm);
+       font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.h-cap b{color:var(--accent);font-weight:800;font-family:Outfit,sans-serif}
+.scroll-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;
+       flex-direction:column;align-items:center;gap:7px;color:var(--muted);
+       font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+.sh-line{width:2px;height:32px;border-radius:2px;background:linear-gradient(180deg,var(--accent),transparent);
+       transform-origin:top;animation:shline 1.7s ease-in-out infinite}
+@keyframes shline{0%{transform:scaleY(0);opacity:1}60%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
+@media(max-width:900px){
+  .hero{height:300vh}
+  .hero-pin{padding-top:84px;gap:1.6vh}
+  .hero-copy h1{font-size:clamp(28px,7.4vw,36px)}
+  .hero-copy .lead{font-size:14.5px;max-width:400px}
+  .hero-copy .cta{margin-top:14px}
+  .hero-copy .btn{padding:11px 18px;font-size:13.5px}
+  .h-card .phone{width:clamp(104px,14.5vh,132px);padding:7px;border-radius:24px}
+  .h-card .phone::before{width:44px;height:9px;top:9px}
+  .h-card .phone img{border-radius:18px}
+  .h-cap{font-size:11.5px;padding:5px 11px;margin-top:8px}
+}
+/* short laptop screens: shrink everything so nothing clips during the pin */
+@media(max-height:820px){
+  .hero-copy h1{font-size:clamp(28px,4vw,42px)}
+  .hero-copy .lead{font-size:14.5px;max-width:580px}
+  .h-card .phone{width:clamp(118px,15.5vh,170px)}
+}
+/* hero collapses to a natively swipeable rail without JS / with reduced motion */
+html:not(.js) .hero{height:auto}
+html:not(.js) .hero-pin{position:static;height:auto;padding:110px 0 40px}
+html:not(.js) .h-rail{overflow-x:auto}
+html:not(.js) .scroll-hint{display:none}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;background:#fff;
       border:1px solid var(--line);font-size:13px;color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
 .pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent2);
@@ -163,14 +209,6 @@ h3{font-size:20px}
 .phone img{border-radius:28px}
 .float{animation:bob 7s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
-.phone-stack{position:relative;height:560px;perspective:1200px}
-.phone-stack .phone{position:absolute;transition:transform .5s var(--spring)}
-.phone-stack .p-a{left:50%;transform:translateX(-58%);z-index:3}
-.phone-stack .p-b{left:50%;transform:translateX(6%) scale(.86);top:40px;z-index:2;opacity:.96}
-@media(max-width:900px){.phone-stack{height:480px}.phone{width:230px}}
-/* pointer tilt (JS sets --rx/--ry on .tilt) */
-.tilt{transform-style:preserve-3d}
-.tilt .phone{transform-origin:center}
 
 /* ===== Split rows ===== */
 .split{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center;margin-bottom:26px}
@@ -355,7 +393,11 @@ html:not(.js) .st-text .w{color:inherit}
 
 @media(prefers-reduced-motion:reduce){
   html.js .reveal,.h-line>span{opacity:1;transform:none;animation:none;transition:none}
-  .blob,.float,.blink,.wave,.m-track,.pill::before{animation:none}
+  .blob,.float,.blink,.wave,.m-track,.pill::before,.sh-line{animation:none}
+  .hero{height:auto}
+  .hero-pin{position:static;height:auto;padding:110px 0 40px}
+  .h-rail{overflow-x:auto}
+  .scroll-hint{display:none}
   .scene,.statement{height:auto}
   .scene-pin,.st-pin{position:static;height:auto;min-height:0;padding:84px 0}
   .s-step{opacity:1;transform:none;transition:none}

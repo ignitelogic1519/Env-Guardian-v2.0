@@ -124,6 +124,46 @@
   }
 
   // ======================================================================
+  // Pinned hero — vertical scroll scrubs the phone rail HORIZONTALLY.
+  // The rail's x-position is a pure function of scroll progress, so
+  // scrolling up slides the whole story back to the start. The copy
+  // gently recedes as the rail travels; the scroll hint fades out.
+  // ======================================================================
+  var hero = document.querySelector('.hero .hero-pin') ? document.querySelector('.hero') : null;
+  var heroParts = null;
+  if (hero && !reduced) {
+    heroParts = {
+      track: hero.querySelector('.h-track'),
+      copy: hero.querySelector('.hero-copy'),
+      hint: hero.querySelector('.scroll-hint')
+    };
+    hero.querySelectorAll('.h-card img').forEach(function (img) {
+      if (img.decode) img.decode().catch(function () {});
+    });
+  }
+
+  function applyHero() {
+    var hp = heroParts;
+    if (!hp || !hp.track) return;
+    var vh = window.innerHeight, vw = window.innerWidth;
+    var r = hero.getBoundingClientRect();
+    var total = r.height - vh;
+    if (total <= 0) return;
+    var p = clamp01(-r.top / total);
+    // rail starts pushed right (first phone peeking in) and ends with the
+    // last phone parked near the left edge
+    var x0 = vw * 0.58;
+    var x1 = -(hp.track.scrollWidth - vw + vw * 0.06);
+    hp.track.style.transform = 'translateX(' + (x0 + (x1 - x0) * p) + 'px)';
+    if (hp.copy) {
+      var cp = clamp01((p - 0.1) / 0.75);
+      hp.copy.style.opacity = String(1 - 0.55 * cp);
+      hp.copy.style.transform = 'translateY(' + (-24 * cp) + 'px) scale(' + (1 - 0.04 * cp) + ')';
+    }
+    if (hp.hint) hp.hint.style.opacity = String(1 - clamp01(p / 0.07));
+  }
+
+  // ======================================================================
   // Pinned story scene — the Apple technique. The section is 400vh tall and
   // its content is position:sticky, so the user scrolls "through" it while
   // the phone stays put. Scroll progress (0..1) is a pure function of scroll
@@ -242,6 +282,7 @@
         if (b2) b2.style.transform = 'translateY(' + (-y * 0.05) + 'px)';
         if (b3) b3.style.transform = 'translateY(' + (y * 0.035) + 'px)';
         applyScrub();
+        applyHero();
         applyScene();
         applyStatement();
       }
@@ -262,30 +303,6 @@
         card.style.setProperty('--mx', (ev.clientX - r.left) + 'px');
         card.style.setProperty('--my', (ev.clientY - r.top) + 'px');
       });
-    });
-  }
-
-  // ======================================================================
-  // Pointer tilt on the hero phone stack (desktop, hover-capable only)
-  // ======================================================================
-  var tilt = document.querySelector('.tilt');
-  if (tilt && !reduced && window.matchMedia('(hover:hover)').matches) {
-    var phones = tilt.querySelectorAll('.phone');
-    phones.forEach(function (p) {
-      var cur = getComputedStyle(p).transform;
-      p.dataset.base = (cur === 'none' ? '' : cur);
-    });
-    tilt.addEventListener('mousemove', function (ev) {
-      var r = tilt.getBoundingClientRect();
-      var x = (ev.clientX - r.left) / r.width - 0.5;
-      var y = (ev.clientY - r.top) / r.height - 0.5;
-      phones.forEach(function (p, i) {
-        var depth = i === 0 ? 7 : 11;
-        p.style.transform = p.dataset.base + ' rotateY(' + (x * depth) + 'deg) rotateX(' + (-y * depth) + 'deg)';
-      });
-    });
-    tilt.addEventListener('mouseleave', function () {
-      phones.forEach(function (p) { p.style.transform = p.dataset.base; });
     });
   }
 })();

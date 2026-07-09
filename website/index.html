@@ -7,7 +7,7 @@
 <meta name="description" content="Env Guardian secures personal Android phones inside restricted zones — blocking unapproved apps, cutting their network with an always-on VPN and verifying presence — then restores full access the instant they leave. No device wipe. No enrollment. BYOD-friendly." />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=4">
+<link rel="stylesheet" href="assets/style.css?v=5">
 </head>
 <body>
 <div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
@@ -28,27 +28,30 @@
   </div>
 </nav>
 
-<!-- HERO -->
-<header class="hero wrap">
-  <div class="hero-grid">
-    <div>
+<!-- HERO — pinned; vertical scroll drives the phone rail HORIZONTALLY through
+     the six-screen story (and back again on scroll-up). No stacked mockups. -->
+<header class="hero">
+  <div class="hero-pin">
+    <div class="hero-copy">
       <span class="pill reveal">BYOD Mobile Device Management · Android</span>
-      <h1><span class="h-line"><span>Secure zones.</span></span><span class="h-line"><span>Personal phones.</span></span><span class="h-line"><span class="grad">Zero compromise.</span></span></h1>
-      <p class="lead reveal">Env Guardian turns any employee's personal Android into a compliant device — but <b>only where it matters</b>. Step into a restricted zone and unapproved apps are blocked, their internet is cut and presence is verified. Walk out, and the phone is instantly theirs again. No wipe. No enrollment.</p>
+      <h1><span class="h-line"><span>Secure zones. Personal phones.</span></span><span class="h-line"><span class="grad">Zero compromise.</span></span></h1>
+      <p class="lead reveal">Step into a restricted zone and unapproved apps are blocked, their internet is cut and presence is verified. Walk out, and the phone is instantly personal again. <b>No wipe. No enrollment.</b></p>
       <div class="cta reveal">
         <a class="btn btn-primary" href="how-it-works.html">See how it works →</a>
         <a class="btn btn-ghost" href="features.html">Explore features</a>
       </div>
-      <div class="trust reveal">
-        <span>✓ No device wipe</span><span>✓ No factory reset</span><span>✓ Privacy outside the zone</span>
+    </div>
+    <div class="h-rail">
+      <div class="h-track">
+        <figure class="h-card"><div class="phone"><img src="assets/shots/map-zone.jpeg" alt="Restricted zone drawn as a polygon on the map"></div><figcaption class="h-cap"><b>01</b> Draw the zone</figcaption></figure>
+        <figure class="h-card"><div class="phone"><img src="assets/shots/notif-enter.jpeg" alt="Full-screen prompt on entering the restricted zone"></div><figcaption class="h-cap"><b>02</b> Boundary detected</figcaption></figure>
+        <figure class="h-card"><div class="phone"><img src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer"></div><figcaption class="h-cap"><b>03</b> Secure mode on</figcaption></figure>
+        <figure class="h-card"><div class="phone"><img src="assets/shots/logs.jpeg" alt="Live allow/block compliance ledger"></div><figcaption class="h-cap"><b>04</b> Every attempt logged</figcaption></figure>
+        <figure class="h-card"><div class="phone"><img src="assets/shots/armory.jpeg" alt="Admin app whitelist vault"></div><figcaption class="h-cap"><b>05</b> Approve your apps</figcaption></figure>
+        <figure class="h-card"><div class="phone"><img src="assets/shots/notif-safe.jpeg" alt="Back in the safe zone — full access restored"></div><figcaption class="h-cap"><b>06</b> Freedom restored</figcaption></figure>
       </div>
     </div>
-    <div class="reveal right">
-      <div class="phone-stack tilt">
-        <div class="phone p-b float" data-scrub="fall" data-scrub-amt="46"><img src="assets/shots/map-zone.jpeg" alt="Restricted zone drawn on the map"></div>
-        <div class="phone p-a float" data-scrub="rise" data-scrub-amt="40"><img src="assets/shots/secure-timer.jpeg" alt="Secure Zone Active with a live time-in-zone timer"></div>
-      </div>
-    </div>
+    <div class="scroll-hint" aria-hidden="true">Scroll<span class="sh-line"></span></div>
   </div>
 </header>
 
@@ -237,6 +240,6 @@
   </div>
   <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
 </footer>
-<script src="assets/main.js?v=4"></script>
+<script src="assets/main.js?v=5"></script>
 </body>
 </html>
