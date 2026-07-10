@@ -3,7 +3,7 @@
 // It can also be overridden at runtime from the login screen ("Server
 // connection") — that value is stored in the browser and wins over this file.
 window.EG_CONFIG = {
-  API_BASE: "https://env-guardian-server.onrender.com", // ← change to your Render URL
+  API_BASE: "https://envguardian-server-j8yv.onrender.com", // ← change to your Render URL
 
   // How often (ms) live pages re-poll the server.
   REFRESH_MS: 20000,
