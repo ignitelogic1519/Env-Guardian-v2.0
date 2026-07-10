@@ -6,11 +6,25 @@ hosted on any free static host **separately from the backend**. It signs in
 against the backend's `POST /api/auth/login` (JWT) and drives every admin
 operation through the existing REST API.
 
-**Design:** dark glassmorphism + neumorphism in a Microsoft-Intune-style shell
-(left navigation rail, top bar, frosted content cards) over an animated aurora
-background — matching the mobile app's Command Center look. Springy staggered
-reveals, count-up KPIs, hover-lift cards, live pulse indicators; honours
-`prefers-reduced-motion`.
+**Design:** two themes on one Intune-style shell (left navigation rail, top
+bar, frosted content cards), switched with the **sun/moon toggle** in the top
+bar (persisted per browser):
+
+- **Dark (default):** glassmorphism + neumorphism over an animated aurora —
+  matching the mobile app's Command Center.
+- **Light:** the marketing website's language — white canvas, soft layered
+  shadows, and the same pastel animated background blobs.
+
+Both themes share the springy staggered reveals, count-up KPIs, hover-lift
+cards and live pulse indicators; charts re-color themselves per theme
+(palettes validated for contrast + color-blind safety on each surface).
+Honours `prefers-reduced-motion`.
+
+**Built for large fleets (1000+ devices):** every table paginates (devices
+50/page; users, enrollment and compliance 25/page) with debounced search;
+the Overview shows the ~24 devices needing attention first (locked →
+non-compliant → in-zone) instead of rendering the whole fleet; the policy
+device picker is a filtered list capped at 200 visible matches.
 
 ---
 
@@ -18,7 +32,8 @@ reveals, count-up KPIs, hover-lift cards, live pulse indicators; honours
 
 | Page | What it does |
 |------|--------------|
-| **Overview** | KPI tiles (devices, online, in-zone, compliance rate, logins today) + live device fleet cards; auto-refreshes every 20 s |
+| **Home** | The landing page: a card per section explaining what it's for, what you can do there, and which roles can open it — plus live fleet mini-stats |
+| **Overview** | KPI tiles (devices, online, in-zone, compliance rate, logins today) + the devices needing attention first; auto-refreshes every 20 s |
 | **Devices** | Searchable/filterable fleet table → per-device panel: compliance matrix (7 checks + QR-verified), remote lock ("banishment"), per-device whitelist editor, today's app usage, unenroll |
 | **Metrics** | Fleet compliance rate (hero figure), compliant vs non-compliant split, **console logins per day** (14-day chart), top apps used today, per-device compliance scores |
 | **Policy Controller** | Global whitelist editor + per-device app policies: daily time limits, allow/block, and the `app_time_limits` feature key |

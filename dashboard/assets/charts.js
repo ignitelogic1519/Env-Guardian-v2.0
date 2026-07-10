@@ -4,7 +4,20 @@
 // per-mark hover tooltips with hit targets larger than the mark.
 window.EGCharts = (() => {
   const NS = "http://www.w3.org/2000/svg";
-  const INK = "#c7cfe6", MUTED = "#8d99b8", GRID = "rgba(255,255,255,.07)", AXIS = "rgba(255,255,255,.16)";
+  // chart chrome follows the active theme — read the CSS variables at draw time
+  function chrome() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name, fb) => (cs.getPropertyValue(name) || fb).trim();
+    return {
+      INK:   v("--ink-2", "#c7cfe6"),
+      MUTED: v("--muted", "#8d99b8"),
+      GRID:  v("--grid-line", "rgba(255,255,255,.07)"),
+      AXIS:  v("--axis", "rgba(255,255,255,.16)"),
+      SERIES: v("--series-1", "#3987e5"),
+      BAD:   v("--bad", "#d03b3b"),
+      SURFACE: v("--surface", "#151a2c"),
+    };
+  }
 
   // ── shared tooltip ──
   const tipEl = () => document.getElementById("vizTip");
@@ -47,7 +60,8 @@ window.EGCharts = (() => {
 
   // ── column chart: data = [{label, value, tip?}] ─────────────────────────
   function column(host, data, opts = {}) {
-    const color = opts.color || "#3987e5";
+    const { INK, MUTED, GRID, AXIS, SERIES } = chrome();
+    const color = opts.color || SERIES;
     const W = 640, H = 230, padL = 40, padR = 8, padT = 12, padB = 28;
     const iw = W - padL - padR, ih = H - padT - padB, yBase = padT + ih;
     const max = Math.max(1, ...data.map((d) => d.value));
@@ -93,7 +107,8 @@ window.EGCharts = (() => {
 
   // ── horizontal bars: data = [{label, value, display?, tip?}] ────────────
   function hbars(host, data, opts = {}) {
-    const color = opts.color || "#3987e5";
+    const { INK, MUTED, AXIS, SERIES } = chrome();
+    const color = opts.color || SERIES;
     const W = 640, row = 34, padT = 4;
     const H = padT + data.length * row + 4;
     const labelW = 172, valueW = 66;
@@ -132,6 +147,7 @@ window.EGCharts = (() => {
 
   // ── geofence polygon preview ────────────────────────────────────────────
   function polygon(host, points) {
+    const { MUTED, GRID, BAD, SURFACE } = chrome();
     const W = 640, H = 300, pad = 34;
     host.innerHTML = "";
     if (!Array.isArray(points) || points.length < 3) {
@@ -152,10 +168,10 @@ window.EGCharts = (() => {
       if (i < 4) svg.appendChild(svgEl("line", { x1: 0, x2: W, y1: (H / 4) * i, y2: (H / 4) * i, stroke: GRID, "stroke-width": 1 }));
     }
     const d = points.map((p, i) => { const c = px(p); return `${i ? "L" : "M"}${c.x.toFixed(1)},${c.y.toFixed(1)}`; }).join(" ") + " Z";
-    svg.appendChild(svgEl("path", { d, fill: "rgba(208,59,59,.14)", stroke: "#d03b3b", "stroke-width": 2, "stroke-linejoin": "round" }));
+    svg.appendChild(svgEl("path", { d, fill: "rgba(208,59,59,.14)", stroke: BAD, "stroke-width": 2, "stroke-linejoin": "round" }));
     points.forEach((p, i) => {
       const c = px(p);
-      svg.appendChild(svgEl("circle", { cx: c.x, cy: c.y, r: 5, fill: "#d03b3b", stroke: "#151a2c", "stroke-width": 2 }));
+      svg.appendChild(svgEl("circle", { cx: c.x, cy: c.y, r: 5, fill: BAD, stroke: SURFACE, "stroke-width": 2 }));
       const t = svgEl("text", { x: c.x + 9, y: c.y - 7, "font-size": 10.5, fill: MUTED });
       t.textContent = `P${i + 1}`; svg.appendChild(t);
     });

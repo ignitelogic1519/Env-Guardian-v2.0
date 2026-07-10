@@ -20,6 +20,7 @@ try { session = JSON.parse(sessionStorage.getItem("eg_session")); } catch {}
 // ═══════════ RBAC MATRIX ═══════════
 const ALL = ["admin", "manager", "viewer"];
 const PAGES = [
+  { id: "home", title: "Home", roles: ALL, icon: "home" },
   { sec: "Monitor" },
   { id: "overview", title: "Overview",          roles: ALL,                  icon: "grid" },
   { id: "devices",  title: "Devices",           roles: ALL,                  icon: "phone" },
@@ -44,6 +45,58 @@ const CAN = {
 const can = (act) => session && CAN[act]?.includes(session.user.role);
 const role = () => session?.user?.role || "";
 
+// What each section is for — powers the Home page cards.
+const PAGE_INFO = {
+  overview: {
+    desc: "Your live command center. A snapshot of the whole fleet the moment you open it.",
+    points: ["KPI tiles: enrolled, online, in-zone, compliance rate, logins",
+             "Devices needing attention surface first (locked, non-compliant, in-zone)",
+             "Auto-refreshes — click any device card to manage it"],
+  },
+  devices: {
+    desc: "The full device inventory — search, filter and administer every enrolled phone.",
+    points: ["Search by name, employee ID or model across the entire fleet",
+             "Per-device panel: compliance matrix, remote lock, whitelist, usage",
+             "Filters: online, in-zone, locked, non-compliant"],
+  },
+  metrics: {
+    desc: "Numbers over time: sign-ins, compliance, and what the fleet is actually using.",
+    points: ["Console logins per day (last 14 days)",
+             "Compliant vs non-compliant split + per-device scores",
+             "Top apps used inside the zone today"],
+  },
+  policies: {
+    desc: "Decide what runs inside the restricted zone — globally and per employee.",
+    points: ["Global whitelist that applies to every device",
+             "Per-app daily time limits (e.g. YouTube 30 min/day)",
+             "Feature keys that unlock time limits per employee"],
+  },
+  qr: {
+    desc: "The physical presence check — manage the QR code posted at the zone entrance.",
+    points: ["Live QR display: static (printable) or rotating TOTP (30 s)",
+             "Switch modes and rotate the secret instantly",
+             "A scan marks the device QR-verified and starts its zone clock"],
+  },
+  enroll: {
+    desc: "Bring devices in and take them out — the BYOD lifecycle in four steps.",
+    points: ["Step-by-step enrollment walkthrough (no factory reset)",
+             "Devices bind to their first owner — anti-theft by design",
+             "Unenroll to release a device for re-registration"],
+  },
+  users: {
+    desc: "Who can open this console, and what they're allowed to touch.",
+    points: ["Three access groups: admin, manager, viewer (read-only)",
+             "Create accounts, change roles, disable, reset passwords",
+             "Roles live in the database and are enforced by the server"],
+  },
+  settings: {
+    desc: "The system's foundations — change with care, devices re-sync within ~10 s.",
+    points: ["Geofence polygon editor with a live shape preview",
+             "Device admin password (vault unlock / unfreeze)",
+             "Which backend this console connects to"],
+  },
+};
+
 // ═══════════ ICONS ═══════════
 const IC = {
   grid:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>',
@@ -60,6 +113,10 @@ const IC = {
   x:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   zone:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
   login:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>',
+  home:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 20z"/><polyline points="9 21.5 9 13 15 13 15 21.5"/></svg>',
+  sun:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  moon:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  arrow:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
 };
 
 // ═══════════ HELPERS ═══════════
@@ -104,6 +161,39 @@ $("#modalBg").addEventListener("click", (e) => { if (e.target.id === "modalBg") 
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ═══════════ THEME (dark aurora ⇆ light website look) ═══════════
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem("eg_theme", t);
+  $$(".theme-btn").forEach((b) => { b.innerHTML = t === "light" ? IC.moon : IC.sun; });
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+  // charts read theme colors at draw time — re-render the current page
+  if (session && currentPage) navigate(currentPage);
+}
+applyTheme(localStorage.getItem("eg_theme") || "dark");
+$("#themeBtn")?.addEventListener("click", toggleTheme);
+$("#themeFloat")?.addEventListener("click", toggleTheme);
+
+// ═══════════ PAGINATION (keeps the UI fast at 1000+ rows) ═══════════
+function pagerHtml(total, page, per) {
+  if (total <= per) return "";
+  const from = (page - 1) * per + 1, to = Math.min(total, page * per);
+  const last = Math.ceil(total / per);
+  return `<div class="pager"><span class="pg-info">${from}–${to} of ${total}</span>
+    <button class="btn btn-ghost btn-sm" data-pg="${page - 1}" ${page === 1 ? "disabled" : ""}>‹ Prev</button>
+    <span>${page} / ${last}</span>
+    <button class="btn btn-ghost btn-sm" data-pg="${page + 1}" ${page === last ? "disabled" : ""}>Next ›</button>
+  </div>`;
+}
+function bindPager(root, cb) {
+  $$("[data-pg]", root).forEach((b) => b.addEventListener("click", () => cb(parseInt(b.dataset.pg, 10))));
+}
+function debounce(fn, ms = 220) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
 
 // staggered reveal of .rv elements
 function reveal(root = document) {
@@ -154,6 +244,7 @@ function logout(msg) {
   clearTimers();
   $("#shell").classList.remove("on");
   $("#loginView").style.display = "flex";
+  $("#themeFloat").style.display = "";
   if (msg) { const e = $("#loginErr"); e.textContent = msg; e.classList.add("show"); }
   location.hash = "";
 }
@@ -189,6 +280,7 @@ $("#logoutBtn").addEventListener("click", () => logout());
 // ═══════════ SHELL / NAV / ROUTER ═══════════
 function enterShell() {
   $("#loginView").style.display = "none";
+  $("#themeFloat").style.display = "none"; // the shell has its own toggle in the top bar
   const shell = $("#shell");
   shell.classList.add("on");
   const u = session.user;
@@ -196,8 +288,8 @@ function enterShell() {
   $("#uRole").textContent = u.role;
   $("#uAvatar").textContent = (u.fullName || u.username).split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   buildNav();
-  const target = location.hash.replace("#/", "") || "overview";
-  navigate(allowed(target) ? target : "overview");
+  const target = location.hash.replace("#/", "") || "home";
+  navigate(allowed(target) ? target : "home");
 }
 
 function allowed(id) {
@@ -227,7 +319,7 @@ function clearTimers() { pageTimers.forEach(clearInterval); pageTimers = []; }
 function every(ms, fn) { pageTimers.push(setInterval(fn, ms)); }
 
 function navigate(id) {
-  if (!allowed(id)) id = "overview";
+  if (!allowed(id)) id = "home";
   clearTimers();
   currentPage = id;
   location.hash = "/" + id;
@@ -292,8 +384,74 @@ function bindDeviceCards(root) {
   $$(".dev-card[data-emp]", root).forEach((c) => c.addEventListener("click", () => openDeviceModal(c.dataset.emp)));
 }
 
-// ═══════════ PAGE: OVERVIEW ═══════════
+// ═══════════ PAGE: HOME (what everything does) ═══════════
 const RENDER = {};
+
+RENDER.home = async (view) => {
+  const u = session.user;
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const sections = PAGES.filter((p) => p.id && p.id !== "home");
+
+  view.innerHTML = `<div class="page">
+    <div class="glass home-hero rv">
+      <div class="hh-ic">${IC.shield}</div>
+      <div style="flex:1;min-width:240px">
+        <h2>${greet}, ${esc((u.fullName || u.username).split(" ")[0])} 👋</h2>
+        <p>This console manages the Env Guardian zero-trust BYOD fleet: devices enforce policy inside the
+        restricted zone and report back here in real time. You are signed in as
+        <span class="badge role-${u.role}">${u.role}</span> — sections your role can't use are marked below.</p>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap" id="homeStats">
+        <div class="neo-in" style="padding:10px 18px;text-align:center;min-width:92px">
+          <div style="font-size:22px;font-weight:700;font-family:Outfit" id="hsDev">–</div>
+          <div style="font-size:11px;color:var(--muted)">devices</div></div>
+        <div class="neo-in" style="padding:10px 18px;text-align:center;min-width:92px">
+          <div style="font-size:22px;font-weight:700;font-family:Outfit;color:var(--good-text)" id="hsOn">–</div>
+          <div style="font-size:11px;color:var(--muted)">online</div></div>
+        <div class="neo-in" style="padding:10px 18px;text-align:center;min-width:92px">
+          <div style="font-size:22px;font-weight:700;font-family:Outfit" id="hsComp">–</div>
+          <div style="font-size:11px;color:var(--muted)">compliant</div></div>
+      </div>
+    </div>
+
+    <div class="sect-h"><div><h3>What each section does</h3>
+      <p>Click a card to open it. Availability follows your access group.</p></div></div>
+    <div class="grid g-home">
+      ${sections.map((p) => {
+        const ok = p.roles.includes(u.role);
+        const info = PAGE_INFO[p.id] || { desc: "", points: [] };
+        return `<div class="home-card glass ${ok ? "hover-lift" : "locked"} rv" ${ok ? `data-go="${p.id}"` : ""}>
+          <div class="hc-top"><div class="hc-ic">${IC[p.icon]}</div><h3>${p.title}</h3>
+            ${ok ? "" : `<span style="width:16px;height:16px;color:var(--faint);display:inline-flex" title="Not available to your role">${IC.lock}</span>`}</div>
+          <p>${info.desc}</p>
+          <ul>${info.points.map((pt) => `<li>${pt}</li>`).join("")}</ul>
+          <div class="hc-foot">
+            ${p.roles.map((r) => `<span class="badge role-${r}">${r}</span>`).join("")}
+            ${ok ? `<span class="go">Open ${IC.arrow}</span>` : ""}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+  reveal(view);
+  $$("[data-go]", view).forEach((c) => c.addEventListener("click", () => navigate(c.dataset.go)));
+
+  // fill the live mini-stats quietly (aggregates only — cheap even at 1000+ devices)
+  api("/api/dashboard/metrics").then((m) => {
+    const set = (id, v) => { const el = $(id); if (el) countUp(el, v); };
+    set("#hsDev", m.devices.total); set("#hsOn", m.devices.online); set("#hsComp", m.devices.compliant);
+  }).catch(() => {});
+};
+
+// ═══════════ PAGE: OVERVIEW ═══════════
+
+// Overview shows the devices that most need attention, not the whole fleet —
+// locked > non-compliant > in-zone first; the Devices page holds the full list.
+const FLEET_CAP = 24;
+const attention = (a) => (a.admin_lock || a.auto_lock ? 4 : 0) + (a.policy_status !== "PASS" ? 2 : 0) + (a.in_zone ? 1 : 0);
+const fleetSubset = (agents) =>
+  [...agents].sort((x, y) => attention(y) - attention(x) || (y.last_seen || 0) - (x.last_seen || 0)).slice(0, FLEET_CAP);
 
 RENDER.overview = async (view) => {
   const [{ agents }, m] = await Promise.all([
@@ -305,6 +463,7 @@ RENDER.overview = async (view) => {
   const inZone = agents.filter((a) => a.in_zone).length;
   const compliant = agents.filter((a) => a.policy_status === "PASS").length;
   const rate = total ? Math.round((compliant / total) * 100) : 100;
+  const shown = fleetSubset(agents);
 
   view.innerHTML = `<div class="page">
     <div class="grid g-kpi">
@@ -314,18 +473,24 @@ RENDER.overview = async (view) => {
       ${kpiTile({ label: "Compliance rate", value: rate, suffix: "%", icon: "shield", tone: rate >= 80 ? "var(--good-text)" : "var(--warn-text)", sub: `${compliant}/${total} compliant` })}
       ${m ? kpiTile({ label: "Logins today", value: m.logins.today, icon: "login", sub: `${m.logins.total} all-time` }) : ""}
     </div>
-    <div class="sect-h"><div><h3>Device fleet</h3><p>Live status — refreshes every ${Math.round((CFG.REFRESH_MS || 20000) / 1000)}s. Click a device to manage it.</p></div></div>
+    <div class="sect-h"><div><h3>Device fleet</h3>
+      <p>${total > FLEET_CAP
+        ? `Showing the ${FLEET_CAP} devices needing attention first (locked → non-compliant → in-zone) of ${total} total.`
+        : "Live status — click a device to manage it."} Refreshes every ${Math.round((CFG.REFRESH_MS || 20000) / 1000)}s.</p></div>
+      ${total > FLEET_CAP ? `<button class="btn btn-ghost btn-sm" id="seeAll">View all ${total} in Devices ›</button>` : ""}
+    </div>
     <div class="grid g-cards" id="fleet">
-      ${total ? agents.map(deviceCard).join("") : `<div class="glass card empty" style="grid-column:1/-1">${IC.phone}<div>No devices enrolled yet.<br>Install the Env Guardian app on a device and complete setup.</div></div>`}
+      ${total ? shown.map(deviceCard).join("") : `<div class="glass card empty" style="grid-column:1/-1">${IC.phone}<div>No devices enrolled yet.<br>Install the Env Guardian app on a device and complete setup.</div></div>`}
     </div>
   </div>`;
   runCounters(view); runMeters(view); reveal(view); bindDeviceCards(view);
+  $("#seeAll")?.addEventListener("click", () => navigate("devices"));
 
   every(CFG.REFRESH_MS || 20000, async () => {
     try {
       const { agents: fresh } = await api("/api/dashboard/agents");
       const fleet = $("#fleet"); if (!fleet) return;
-      fleet.innerHTML = fresh.length ? fresh.map(deviceCard).join("") : fleet.innerHTML;
+      fleet.innerHTML = fresh.length ? fleetSubset(fresh).map(deviceCard).join("") : fleet.innerHTML;
       $$(".rv", fleet).forEach((el) => el.classList.add("in"));
       runMeters(fleet); bindDeviceCards(fleet);
     } catch {}
@@ -347,6 +512,9 @@ RENDER.devices = async (view) => {
       <td class="num" style="color:var(--muted)">${timeAgo(a.last_seen)}</td>
     </tr>`).join("");
 
+  const PER = 50;
+  let page = 1;
+
   view.innerHTML = `<div class="page">
     <div class="glass card rv" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <input class="input" id="devSearch" placeholder="Search name, ID or model…" style="max-width:320px" />
@@ -355,35 +523,43 @@ RENDER.devices = async (view) => {
         <option value="inzone">In zone</option><option value="locked">Locked</option>
         <option value="noncompliant">Non-compliant</option>
       </select>
-      <span style="margin-left:auto;color:var(--muted);font-size:13px">${agents.length} device${agents.length === 1 ? "" : "s"}</span>
+      <span style="margin-left:auto;color:var(--muted);font-size:13px" id="devCount"></span>
     </div>
     <div class="glass tbl-wrap rv" style="margin-top:16px">
       <table class="tbl"><thead><tr>
         <th>Employee</th><th>Device</th><th>Status</th><th>Zone</th><th>Compliance</th><th>Lock</th><th>Last seen</th>
-      </tr></thead><tbody id="devBody">${rows(agents)}</tbody></table>
+      </tr></thead><tbody id="devBody"></tbody></table>
+      <div id="devPager"></div>
       ${agents.length ? "" : `<div class="empty">${IC.phone}<div>No devices enrolled.</div></div>`}
     </div>
   </div>`;
-  reveal(view); runMeters(view);
+  reveal(view);
 
-  const bindRows = () => $$("#devBody tr").forEach((tr) => tr.addEventListener("click", () => openDeviceModal(tr.dataset.emp)));
-  bindRows();
-  const applyFilter = () => {
+  const filtered = () => {
     const q = $("#devSearch").value.toLowerCase(), f = $("#devFilter").value;
-    const list = agents.filter((a) => {
-      const hay = `${a.emp_name} ${a.emp_id} ${a.device_model}`.toLowerCase();
-      if (q && !hay.includes(q)) return false;
+    return agents.filter((a) => {
+      if (q && !`${a.emp_name} ${a.emp_id} ${a.device_model}`.toLowerCase().includes(q)) return false;
       if (f === "online" && !a.is_online) return false;
       if (f === "inzone" && !a.in_zone) return false;
       if (f === "locked" && !(a.admin_lock || a.auto_lock)) return false;
       if (f === "noncompliant" && a.policy_status === "PASS") return false;
       return true;
     });
-    $("#devBody").innerHTML = rows(list);
-    runMeters($("#devBody")); bindRows();
   };
-  $("#devSearch").addEventListener("input", applyFilter);
-  $("#devFilter").addEventListener("change", applyFilter);
+  const draw = () => {
+    const list = filtered();
+    const last = Math.max(1, Math.ceil(list.length / PER));
+    if (page > last) page = last;
+    $("#devBody").innerHTML = rows(list.slice((page - 1) * PER, page * PER));
+    $("#devPager").innerHTML = pagerHtml(list.length, page, PER);
+    $("#devCount").textContent = `${list.length} of ${agents.length} device${agents.length === 1 ? "" : "s"}`;
+    runMeters($("#devBody"));
+    $$("#devBody tr").forEach((tr) => tr.addEventListener("click", () => openDeviceModal(tr.dataset.emp)));
+    bindPager($("#devPager"), (p) => { page = p; draw(); });
+  };
+  draw();
+  $("#devSearch").addEventListener("input", debounce(() => { page = 1; draw(); }));
+  $("#devFilter").addEventListener("change", () => { page = 1; draw(); });
 };
 
 // ═══════════ DEVICE MODAL (per-device admin) ═══════════
@@ -534,18 +710,30 @@ RENDER.metrics = async (view) => {
     </div>
 
     <div class="glass viz rv" style="margin-top:18px">
-      <h3>Per-device compliance</h3><p class="viz-sub">Score across the 7 device checks; ≥${CFG.COMPLIANT_AT || 80}% = compliant</p>
+      <h3>Per-device compliance</h3><p class="viz-sub">Worst scores first — across the 7 device checks; ≥${CFG.COMPLIANT_AT || 80}% = compliant</p>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Device</th><th>Status</th><th style="width:45%">Score</th><th>Zone</th></tr></thead>
-      <tbody>${m.compliance.map((c) => `<tr>
-        <td><b>${esc(c.emp_name)}</b> <span class="mono">${esc(c.emp_id)}</span></td>
-        <td>${c.status === "PASS" ? '<span class="badge badge-good"><span class="dot"></span>Compliant</span>' : '<span class="badge badge-bad"><span class="dot"></span>Non-compliant</span>'}</td>
-        <td><div class="meter ${meterClass(c.score)}"><i style="width:0" data-w="${c.score}"></i></div><small style="color:var(--faint)">${c.score}%</small></td>
-        <td>${c.in_zone ? '<span class="badge badge-bad"><span class="dot"></span>In zone</span>' : '<span class="badge badge-info"><span class="dot"></span>Safe</span>'}</td>
-      </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No devices yet.</div></td></tr>`}</tbody></table></div>
+      <tbody id="cmpBody"></tbody></table><div id="cmpPager"></div></div>
     </div>
   </div>`;
 
   runCounters(view); runMeters(view); reveal(view);
+
+  // per-device compliance: worst-first, paginated — stays snappy at 1000+ devices
+  const cmpAll = [...m.compliance].sort((a, b) => a.score - b.score);
+  const CMP_PER = 25; let cmpPage = 1;
+  const drawCmp = () => {
+    const body = $("#cmpBody"); if (!body) return;
+    body.innerHTML = cmpAll.slice((cmpPage - 1) * CMP_PER, cmpPage * CMP_PER).map((c) => `<tr>
+      <td><b>${esc(c.emp_name)}</b> <span class="mono">${esc(c.emp_id)}</span></td>
+      <td>${c.status === "PASS" ? '<span class="badge badge-good"><span class="dot"></span>Compliant</span>' : '<span class="badge badge-bad"><span class="dot"></span>Non-compliant</span>'}</td>
+      <td><div class="meter ${meterClass(c.score)}"><i style="width:0" data-w="${c.score}"></i></div><small style="color:var(--faint)">${c.score}%</small></td>
+      <td>${c.in_zone ? '<span class="badge badge-bad"><span class="dot"></span>In zone</span>' : '<span class="badge badge-info"><span class="dot"></span>Safe</span>'}</td>
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No devices yet.</div></td></tr>`;
+    $("#cmpPager").innerHTML = pagerHtml(cmpAll.length, cmpPage, CMP_PER);
+    runMeters(body);
+    bindPager($("#cmpPager"), (p) => { cmpPage = p; drawCmp(); });
+  };
+  drawCmp();
 
   EGCharts.column($("#vzLogins"), m.logins.series.map((s) => ({
     label: s.date.slice(5),
@@ -588,10 +776,9 @@ RENDER.policies = async (view) => {
 
     <div class="glass card rv" style="margin-top:18px">
       <div class="sect-h" style="margin:0 0 14px"><div><h3>Per-device policies</h3><p>Daily time limits + per-app rules for one employee (feature key required on the device).</p></div></div>
-      <div class="input-row" style="max-width:420px">
-        <select class="input" id="polDev"><option value="">Select a device…</option>
-          ${agents.map((a) => `<option value="${esc(a.emp_id)}" ${a.emp_id === preselect ? "selected" : ""}>${esc(a.emp_name)} — ${esc(a.emp_id)}</option>`).join("")}
-        </select>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;max-width:640px">
+        <input class="input" id="polSearch" placeholder="Filter devices by name or ID…" style="max-width:280px" />
+        <select class="input" id="polDev" style="flex:1;min-width:240px"></select>
       </div>
       <div id="polBody" style="margin-top:16px"><p class="hint">Choose a device to view or edit its app policies.</p></div>
     </div>
@@ -676,6 +863,20 @@ RENDER.policies = async (view) => {
       } catch (ex) { toast(ex.message, "err"); }
     });
   }
+  // Device picker stays usable at 1000+ devices: a filter box narrows the
+  // <select>, which lists at most 200 matches at a time.
+  const POL_CAP = 200;
+  const drawPolSelect = () => {
+    const q = $("#polSearch").value.toLowerCase();
+    const sel = $("#polDev");
+    const keep = sel.value || preselect || "";
+    const list = agents.filter((a) => !q || `${a.emp_name} ${a.emp_id}`.toLowerCase().includes(q));
+    const shown = list.slice(0, POL_CAP);
+    sel.innerHTML = `<option value="">Select a device… (${list.length} match${list.length === 1 ? "" : "es"}${list.length > POL_CAP ? `, showing first ${POL_CAP} — refine the filter` : ""})</option>` +
+      shown.map((a) => `<option value="${esc(a.emp_id)}" ${a.emp_id === keep ? "selected" : ""}>${esc(a.emp_name)} — ${esc(a.emp_id)}</option>`).join("");
+  };
+  drawPolSelect();
+  $("#polSearch").addEventListener("input", debounce(drawPolSelect));
   $("#polDev").addEventListener("change", (e) => loadPolicies(e.target.value));
   if (preselect) loadPolicies(preselect);
 };
@@ -801,26 +1002,42 @@ RENDER.enroll = async (view) => {
       <div>
         <div class="sect-h" style="margin-top:0"><div><h3>Enrolled devices</h3><p>${agents.length} device${agents.length === 1 ? "" : "s"} registered${can("unenroll") ? " — unenrolling deletes policies + usage history" : ""}</p></div></div>
         <div class="glass tbl-wrap rv">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--grid-line)">
+            <input class="input" id="enSearch" placeholder="Search enrolled devices…" style="max-width:280px" />
+          </div>
           <table class="tbl" style="min-width:420px"><thead><tr><th>Device</th><th>Status</th><th>Enrolled</th>${can("unenroll") ? "<th></th>" : ""}</tr></thead>
-          <tbody>${agents.map((a) => `<tr>
-            <td><b>${esc(a.emp_name)}</b><br><span class="mono">${esc(a.emp_id)} · ${esc(a.device_model || "?")}</span></td>
-            <td>${onlineBadge(a)}</td>
-            <td class="num" style="color:var(--muted)">${a.registered_at ? new Date(+a.registered_at).toLocaleDateString() : "—"}</td>
-            ${can("unenroll") ? `<td style="text-align:right"><button class="btn btn-danger btn-sm" data-un="${esc(a.emp_id)}">Unenroll</button></td>` : ""}
-          </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No devices yet.</div></td></tr>`}</tbody></table>
+          <tbody id="enBody"></tbody></table><div id="enPager"></div>
         </div>
       </div>
     </div>
   </div>`;
   reveal(view);
-  $$("[data-un]", view).forEach((b) => b.addEventListener("click", async () => {
-    const id = b.dataset.un;
-    if (!confirm(`Unenroll ${id}? This deletes the device, its policies and usage history so it can be re-registered.`)) return;
-    try {
-      await api(`/api/dashboard/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
-      toast(`${id} unenrolled`); navigate("enroll");
-    } catch (ex) { toast(ex.message, "err"); }
-  }));
+
+  const EN_PER = 25; let enPage = 1;
+  const drawEn = () => {
+    const q = $("#enSearch").value.toLowerCase();
+    const list = agents.filter((a) => !q || `${a.emp_name} ${a.emp_id} ${a.device_model}`.toLowerCase().includes(q));
+    const last = Math.max(1, Math.ceil(list.length / EN_PER));
+    if (enPage > last) enPage = last;
+    $("#enBody").innerHTML = list.slice((enPage - 1) * EN_PER, enPage * EN_PER).map((a) => `<tr>
+      <td><b>${esc(a.emp_name)}</b><br><span class="mono">${esc(a.emp_id)} · ${esc(a.device_model || "?")}</span></td>
+      <td>${onlineBadge(a)}</td>
+      <td class="num" style="color:var(--muted)">${a.registered_at ? new Date(+a.registered_at).toLocaleDateString() : "—"}</td>
+      ${can("unenroll") ? `<td style="text-align:right"><button class="btn btn-danger btn-sm" data-un="${esc(a.emp_id)}">Unenroll</button></td>` : ""}
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No matching devices.</div></td></tr>`;
+    $("#enPager").innerHTML = pagerHtml(list.length, enPage, EN_PER);
+    bindPager($("#enPager"), (p) => { enPage = p; drawEn(); });
+    $$("#enBody [data-un]").forEach((b) => b.addEventListener("click", async () => {
+      const id = b.dataset.un;
+      if (!confirm(`Unenroll ${id}? This deletes the device, its policies and usage history so it can be re-registered.`)) return;
+      try {
+        await api(`/api/dashboard/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
+        toast(`${id} unenrolled`); navigate("enroll");
+      } catch (ex) { toast(ex.message, "err"); }
+    }));
+  };
+  drawEn();
+  $("#enSearch").addEventListener("input", debounce(() => { enPage = 1; drawEn(); }));
 };
 
 // ═══════════ PAGE: USERS & ROLES (admin) ═══════════
@@ -839,20 +1056,12 @@ RENDER.users = async (view) => {
     </div>
 
     <div class="glass tbl-wrap rv" style="margin-top:18px">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--grid-line);display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input class="input" id="usrSearch" placeholder="Search users…" style="max-width:280px" />
+        <span style="margin-left:auto;color:var(--muted);font-size:13px" id="usrCount"></span>
+      </div>
       <table class="tbl"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Last login</th><th style="text-align:right">Actions</th></tr></thead>
-      <tbody>${users.map((u) => `<tr>
-        <td><div style="display:flex;gap:11px;align-items:center">
-          <div class="avatar" style="width:32px;height:32px;font-size:11.5px">${esc(u.avatar_initials || u.username.slice(0, 2).toUpperCase())}</div>
-          <div><b>${esc(u.full_name || u.username)}</b><br><span class="mono">${esc(u.username)}${u.email ? " · " + esc(u.email) : ""}</span></div></div></td>
-        <td><select class="input" data-role="${u.id}" style="padding:6px 10px;max-width:120px" ${u.id === session.user.id ? "disabled" : ""}>
-          ${["admin", "manager", "viewer"].map((r) => `<option value="${r}" ${u.role === r ? "selected" : ""}>${r}</option>`).join("")}</select></td>
-        <td><label class="switch"><input type="checkbox" data-active="${u.id}" ${u.is_active ? "checked" : ""} ${u.id === session.user.id ? "disabled" : ""}><span class="tr"></span></label></td>
-        <td class="num" style="color:var(--muted)">${u.last_login ? timeAgo(+u.last_login) : "never"}</td>
-        <td style="text-align:right;white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" data-pw="${u.id}">Reset password</button>
-          ${u.id === session.user.id ? "" : `<button class="btn btn-danger btn-sm" data-rm="${u.id}" data-name="${esc(u.username)}">Delete</button>`}
-        </td>
-      </tr>`).join("")}</tbody></table>
+      <tbody id="usrBody"></tbody></table><div id="usrPager"></div>
     </div>
 
     <div class="glass card rv" style="margin-top:18px">
@@ -869,25 +1078,54 @@ RENDER.users = async (view) => {
   </div>`;
   reveal(view);
 
-  $$("[data-role]", view).forEach((s) => s.addEventListener("change", async () => {
-    try { await api(`/api/users/${s.dataset.role}`, { method: "PUT", body: JSON.stringify({ role: s.value }) }); toast("Role updated"); }
-    catch (ex) { toast(ex.message, "err"); navigate("users"); }
-  }));
-  $$("[data-active]", view).forEach((s) => s.addEventListener("change", async () => {
-    try { await api(`/api/users/${s.dataset.active}`, { method: "PUT", body: JSON.stringify({ is_active: s.checked }) }); toast(s.checked ? "Account enabled" : "Account disabled"); }
-    catch (ex) { s.checked = !s.checked; toast(ex.message, "err"); }
-  }));
-  $$("[data-pw]", view).forEach((b) => b.addEventListener("click", async () => {
-    const pw = prompt("New password (min 6 characters):");
-    if (!pw) return;
-    try { await api(`/api/users/${b.dataset.pw}`, { method: "PUT", body: JSON.stringify({ password: pw }) }); toast("Password reset"); }
-    catch (ex) { toast(ex.message, "err"); }
-  }));
-  $$("[data-rm]", view).forEach((b) => b.addEventListener("click", async () => {
-    if (!confirm(`Delete user "${b.dataset.name}"? They lose console access immediately.`)) return;
-    try { await api(`/api/users/${b.dataset.rm}`, { method: "DELETE" }); toast("User deleted"); navigate("users"); }
-    catch (ex) { toast(ex.message, "err"); }
-  }));
+  const USR_PER = 25; let usrPage = 1;
+  const usrRow = (u) => `<tr>
+    <td><div style="display:flex;gap:11px;align-items:center">
+      <div class="avatar" style="width:32px;height:32px;font-size:11.5px">${esc(u.avatar_initials || u.username.slice(0, 2).toUpperCase())}</div>
+      <div><b>${esc(u.full_name || u.username)}</b><br><span class="mono">${esc(u.username)}${u.email ? " · " + esc(u.email) : ""}</span></div></div></td>
+    <td><select class="input" data-role="${u.id}" style="padding:6px 10px;max-width:120px" ${u.id === session.user.id ? "disabled" : ""}>
+      ${["admin", "manager", "viewer"].map((r) => `<option value="${r}" ${u.role === r ? "selected" : ""}>${r}</option>`).join("")}</select></td>
+    <td><label class="switch"><input type="checkbox" data-active="${u.id}" ${u.is_active ? "checked" : ""} ${u.id === session.user.id ? "disabled" : ""}><span class="tr"></span></label></td>
+    <td class="num" style="color:var(--muted)">${u.last_login ? timeAgo(+u.last_login) : "never"}</td>
+    <td style="text-align:right;white-space:nowrap">
+      <button class="btn btn-ghost btn-sm" data-pw="${u.id}">Reset password</button>
+      ${u.id === session.user.id ? "" : `<button class="btn btn-danger btn-sm" data-rm="${u.id}" data-name="${esc(u.username)}">Delete</button>`}
+    </td>
+  </tr>`;
+  const drawUsers = () => {
+    const q = $("#usrSearch").value.toLowerCase();
+    const list = users.filter((u) => !q || `${u.username} ${u.full_name || ""} ${u.email || ""} ${u.role}`.toLowerCase().includes(q));
+    const last = Math.max(1, Math.ceil(list.length / USR_PER));
+    if (usrPage > last) usrPage = last;
+    const body = $("#usrBody");
+    body.innerHTML = list.slice((usrPage - 1) * USR_PER, usrPage * USR_PER).map(usrRow).join("");
+    $("#usrPager").innerHTML = pagerHtml(list.length, usrPage, USR_PER);
+    $("#usrCount").textContent = `${list.length} of ${users.length} account${users.length === 1 ? "" : "s"}`;
+    bindPager($("#usrPager"), (p) => { usrPage = p; drawUsers(); });
+
+    $$("[data-role]", body).forEach((s) => s.addEventListener("change", async () => {
+      try { await api(`/api/users/${s.dataset.role}`, { method: "PUT", body: JSON.stringify({ role: s.value }) }); toast("Role updated"); }
+      catch (ex) { toast(ex.message, "err"); navigate("users"); }
+    }));
+    $$("[data-active]", body).forEach((s) => s.addEventListener("change", async () => {
+      try { await api(`/api/users/${s.dataset.active}`, { method: "PUT", body: JSON.stringify({ is_active: s.checked }) }); toast(s.checked ? "Account enabled" : "Account disabled"); }
+      catch (ex) { s.checked = !s.checked; toast(ex.message, "err"); }
+    }));
+    $$("[data-pw]", body).forEach((b) => b.addEventListener("click", async () => {
+      const pw = prompt("New password (min 6 characters):");
+      if (!pw) return;
+      try { await api(`/api/users/${b.dataset.pw}`, { method: "PUT", body: JSON.stringify({ password: pw }) }); toast("Password reset"); }
+      catch (ex) { toast(ex.message, "err"); }
+    }));
+    $$("[data-rm]", body).forEach((b) => b.addEventListener("click", async () => {
+      if (!confirm(`Delete user "${b.dataset.name}"? They lose console access immediately.`)) return;
+      try { await api(`/api/users/${b.dataset.rm}`, { method: "DELETE" }); toast("User deleted"); navigate("users"); }
+      catch (ex) { toast(ex.message, "err"); }
+    }));
+  };
+  drawUsers();
+  $("#usrSearch").addEventListener("input", debounce(() => { usrPage = 1; drawUsers(); }));
+
   $("#nuAdd").addEventListener("click", async () => {
     try {
       await api("/api/users", { method: "POST", body: JSON.stringify({
