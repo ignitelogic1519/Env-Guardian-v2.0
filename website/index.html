@@ -7,7 +7,7 @@
 <meta name="description" content="Env Guardian secures personal Android phones inside restricted zones — blocking unapproved apps, cutting their network with an always-on VPN and verifying presence — then restores full access the instant they leave. No device wipe. No enrollment. BYOD-friendly." />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="stylesheet" href="assets/style.css?v=6">
 </head>
 <body>
 <div class="bg"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
@@ -24,7 +24,6 @@
     <a href="solutions.html">Solutions</a>
     <a href="how-it-works.html">How it works</a>
     <a href="contact.html">Contact</a>
-    <a class="nav-dash" href="https://env-guardian-dashboard.vercel.app" data-dashboard target="_blank" rel="noopener">Dashboard <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="8 7 17 7 17 16"/></svg></a>
     <a class="btn btn-primary" href="contact.html">Request a demo</a>
   </div>
 </nav>
@@ -237,59 +236,6 @@
   </div>
 </section>
 
-<!-- ADMIN CONSOLE / DASHBOARD -->
-<section class="wrap" id="dashboard">
-  <div class="split">
-    <div class="txt reveal left">
-      <span class="eyebrow">Command center</span>
-      <h2>One dashboard runs the whole fleet</h2>
-      <p class="lead">Devices enforce the policy — the <b>Admin Console</b> is where you set it. A live, browser-based control room for every phone, zone and rule, built to stay fast at 1000+ devices.</p>
-      <ul class="tick-list">
-        <li><span class="t">✓</span><span><b>Live fleet view</b> — online/in-zone status, compliance scores and one-tap remote lock per device</span></li>
-        <li><span class="t">✓</span><span><b>Policy Controller</b> — global &amp; per-device whitelists, plus daily app time limits (YouTube, 30 min/day)</span></li>
-        <li><span class="t">✓</span><span><b>QR settings</b> — display the zone code, switch static ↔ rotating (TOTP), rotate the secret instantly</span></li>
-        <li><span class="t">✓</span><span><b>Enrollment &amp; unenrollment</b> — onboard devices in minutes, release them for re-registration in one click</span></li>
-        <li><span class="t">✓</span><span><b>Metrics</b> — sign-ins per day, compliant vs non-compliant, top apps used inside the zone</span></li>
-      </ul>
-      <p style="margin:18px 0 0;font-size:14px;color:var(--muted)">Access is role-based, straight from the database:
-        <span class="role-pill admin">Admin</span><span class="role-pill manager">Manager</span><span class="role-pill viewer">Viewer</span>
-      </p>
-      <div class="cta">
-        <a class="btn btn-primary" href="https://env-guardian-dashboard.vercel.app" data-dashboard target="_blank" rel="noopener">Open the Admin Console ↗</a>
-        <a class="btn btn-ghost" href="features.html#dashboard">Dashboard features</a>
-      </div>
-    </div>
-    <div class="reveal right" data-scrub="rise" data-scrub-amt="34">
-      <div class="console" aria-hidden="true">
-        <div class="co-bar"><i></i><i></i><i></i><span>Env Guardian — Admin Console</span></div>
-        <div class="co-body">
-          <div class="co-side"><i class="on"></i><i></i><i></i><i></i><i></i></div>
-          <div class="co-main">
-            <div class="co-kpis">
-              <div class="co-kpi"><b>128</b><span>Devices</span></div>
-              <div class="co-kpi"><b class="good">96%</b><span>Compliant</span></div>
-              <div class="co-kpi"><b>17</b><span>In zone</span></div>
-            </div>
-            <div class="co-chart"><span class="k">Console logins · 14 days</span>
-              <div class="bars"><i style="--h:38"></i><i style="--h:56"></i><i style="--h:44"></i><i style="--h:72"></i><i style="--h:52"></i><i style="--h:84"></i><i style="--h:97"></i></div>
-            </div>
-            <div class="co-rows">
-              <div class="co-row"><span class="st"></span><b>Aarav S.</b><em>EMP1042 · Pixel 8</em><span class="pillet ok">100%</span></div>
-              <div class="co-row"><span class="st"></span><b>Priya P.</b><em>EMP1077 · Galaxy S23</em><span class="pillet ok">100%</span></div>
-              <div class="co-row"><span class="st off"></span><b>Rohan M.</b><em>EMP1103 · OnePlus 12</em><span class="pillet warn">71%</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="grid g3" style="margin-top:26px">
-    <div class="card reveal pop"><div class="ico">🔐</div><h3>Role-based access</h3><p>Admins run everything; managers operate locks, whitelists and policies; viewers get read-only monitoring. Enforced server-side, not just hidden buttons.</p></div>
-    <div class="card reveal pop"><div class="ico">⚡</div><h3>10-second sync</h3><p>Change a whitelist, limit or zone and every device picks it up within ~10 seconds — no redeploys, no app updates.</p></div>
-    <div class="card reveal pop"><div class="ico">🌐</div><h3>Any browser, anywhere</h3><p>A fast web app with light and dark themes — nothing to install. Sign in with your console account and manage the fleet from any machine.</p></div>
-  </div>
-</section>
-
 <!-- INDUSTRIES TEASER -->
 <section class="wrap">
   <div class="head center">
@@ -323,11 +269,11 @@
       <p style="color:var(--muted);max-width:320px;font-size:14px;margin:0">Zero-Trust security for BYOD, enforced by location. No device wipe, no enrollment friction, privacy preserved outside the zone.</p>
       <div class="badge-row"><span class="chip">Flutter</span><span class="chip">Node.js</span><span class="chip">PostgreSQL</span><span class="chip">Android</span></div>
     </div>
-    <div><h4>Product</h4><a href="features.html">Features</a><a href="how-it-works.html">How it works</a><a href="solutions.html">Solutions</a><a href="https://env-guardian-dashboard.vercel.app" data-dashboard target="_blank" rel="noopener">Admin Console</a></div>
+    <div><h4>Product</h4><a href="features.html">Features</a><a href="how-it-works.html">How it works</a><a href="solutions.html">Solutions</a></div>
     <div><h4>Company</h4><a href="contact.html">Request a demo</a><a href="mailto:ignite.logic1519@gmail.com">Contact us</a></div>
   </div>
   <div class="copy">© <span id="yr"></span> Env Guardian · Secure zones. Personal phones. Zero compromise.</div>
 </footer>
-<script src="assets/main.js?v=7"></script>
+<script src="assets/main.js?v=6"></script>
 </body>
 </html>
