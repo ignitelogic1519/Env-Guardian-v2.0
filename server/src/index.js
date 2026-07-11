@@ -6,6 +6,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const initSchema     = require("./db/initSchema");
+const { startRetention } = require("./db/retention");
 const authRoutes      = require("./routes/auth");
 const agentRoutes     = require("./routes/agents");
 const settingsRoutes  = require("./routes/settings");
@@ -118,7 +119,7 @@ app.use((err, req, res, next) => {
 
 // Ensure the schema exists (creates tables + seeds defaults on a fresh DB),
 // then start listening. Init failures are logged but don't block startup.
-initSchema().finally(() => app.listen(PORT, () => {
+initSchema().finally(() => { startRetention(); app.listen(PORT, () => {
   console.log("");
   console.log("╔═══════════════════════════════════════╗");
   console.log("║     🛡  ENV GUARDIAN SERVER  🛡         ║");
@@ -133,4 +134,4 @@ initSchema().finally(() => app.listen(PORT, () => {
   console.log("║             /api/policies/*           ║");
   console.log("╚═══════════════════════════════════════╝");
   console.log("");
-}));
+}); });

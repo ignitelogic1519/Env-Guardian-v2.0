@@ -455,7 +455,7 @@ router.delete("/dashboard/agents/:empId", requireAuth, requireRole("admin"), asy
     // Remove dependent rows first (no FK, so clean up manually).
     await pool.query("DELETE FROM public.app_usage WHERE emp_id = $1", [empId]);
     await pool.query("DELETE FROM public.app_policies WHERE emp_id = $1", [empId]);
-    await pool.query("DELETE FROM public.device_logs WHERE emp_id = $1", [empId]).catch(() => {});
+    // (device logs are in-memory only — nothing to delete from the DB)
     const result = await pool.query(
       "DELETE FROM public.agents WHERE emp_id = $1 RETURNING emp_id, emp_name",
       [empId]

@@ -149,8 +149,10 @@ function toast(msg, type = "ok") {
   setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 350); }, 3800);
 }
 
-function openModal(html) {
-  $("#modalBox").innerHTML = html;
+function openModal(html, wide = false) {
+  const box = $("#modalBox");
+  box.classList.toggle("modal-wide", !!wide);
+  box.innerHTML = html;
   $("#modalBg").classList.add("on");
   document.body.style.overflow = "hidden";
 }
@@ -568,14 +570,14 @@ RENDER.devices = async (view) => {
 const CHECK_LABELS = { notif: "Notifications", loc: "Location", gps: "GPS", batt: "Battery", overlay: "Overlay", cam: "Camera", access: "Accessibility", usage: "Usage access", qr_verified: "QR verified" };
 
 async function openDeviceModal(empId) {
-  openModal(`<div class="skel" style="height:280px"></div>`);
+  openModal(`<div class="skel" style="height:280px"></div>`, true);
   let a, usage = {};
   try {
     ({ agent: a } = await api(`/api/dashboard/agents/${encodeURIComponent(empId)}`));
     const today = new Date().toISOString().slice(0, 10);
     const u = await api(`/api/app-usage/${encodeURIComponent(empId)}?startDate=${today}&endDate=${today}`).catch(() => null);
     usage = u?.data?.[today] || [];
-  } catch (e) { openModal(`<div class="empty">${IC.x}<div>${esc(e.message)}</div></div>`); return; }
+  } catch (e) { openModal(`<div class="empty">${IC.x}<div>${esc(e.message)}</div></div>`, true); return; }
 
   const comp = typeof a.compliance_status === "string" ? JSON.parse(a.compliance_status || "{}") : (a.compliance_status || {});
   const wl = Array.isArray(a.custom_whitelist) ? a.custom_whitelist : [];
@@ -620,23 +622,34 @@ async function openDeviceModal(empId) {
       </div>` : ""}
     </div>
 
-    <div class="m-sec"><h4>App usage in zone (today)</h4>
-      <p class="hint" style="margin:0 0 8px">Time each app was used <b>while inside the restricted zone</b> today — this is what per-app limits are measured against.</p>
-      ${usage.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Package</th><th style="text-align:right">In-zone time</th></tr></thead>
-        <tbody>${usage.slice(0, 12).map((u) => `<tr><td class="mono">${esc(u.package)}</td><td class="num" style="text-align:right">${msHuman(u.totalMs)}</td></tr>`).join("")}</tbody></table></div>`
-        : '<span class="hint">No in-zone usage reported today.</span>'}
-    </div>
+    <div class="m-usage-cols">
+      <div class="m-sec"><h4>App usage in zone (today)</h4>
+        <p class="hint" style="margin:0 0 8px">Time each app was used <b>while inside the restricted zone</b> today — this is what per-app limits are measured against.</p>
+        ${usage.length ? `<div class="tbl-wrap"><table class="tbl usage-tbl"><thead><tr><th style="width:34px">#</th><th>Package</th><th style="width:34%">Share</th><th style="text-align:right">In-zone time</th></tr></thead>
+          <tbody>${(() => {
+            const rows = [...usage].sort((x, y) => (y.totalMs || 0) - (x.totalMs || 0)).slice(0, 12);
+            const maxMs = Math.max(1, ...rows.map((u) => u.totalMs || 0));
+            return rows.map((u, i) => `<tr>
+              <td class="num" style="color:var(--faint)">${i + 1}</td>
+              <td class="mono">${esc(u.package)}</td>
+              <td><div class="meter m-good"><i style="width:${Math.round(((u.totalMs || 0) / maxMs) * 100)}%"></i></div></td>
+              <td class="num" style="text-align:right;white-space:nowrap">${msHuman(u.totalMs)}</td>
+            </tr>`).join("");
+          })()}</tbody></table></div>`
+          : '<span class="hint">No in-zone usage reported today.</span>'}
+      </div>
 
-    <div class="m-sec"><h4>Live logs <span class="live-dot"><i></i>Live</span></h4>
-      <p class="hint" style="margin:0 0 8px">Real-time allow / block / network events from the device (updates every few seconds).</p>
-      <div class="logfeed" id="mLogs"><span class="hint">Connecting to the device log stream…</span></div>
+      <div class="m-sec"><h4>Live logs <span class="live-dot"><i></i>Live</span></h4>
+        <p class="hint" style="margin:0 0 8px">Real-time allow / block / network events from the device (updates every few seconds).</p>
+        <div class="logfeed" id="mLogs"><span class="hint">Connecting to the device log stream…</span></div>
+      </div>
     </div>
 
     <div class="m-sec" style="display:flex;gap:10px;flex-wrap:wrap">
       ${can("policy") ? `<button class="btn btn-ghost btn-sm" id="mPolicies">Open in Policy Controller →</button>` : ""}
       ${can("unenroll") ? `<button class="btn btn-danger btn-sm" id="mUnenroll">Unenroll device</button>` : ""}
     </div>
-  `);
+  `, true);
 
   $("#mClose").addEventListener("click", closeModal);
 

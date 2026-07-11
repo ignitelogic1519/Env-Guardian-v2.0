@@ -371,6 +371,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 .modal{width:100%;max-width:680px;padding:26px;animation:pop .5s var(--spring) both;margin-bottom:5vh;
   background:var(--glass-2)}
+/* Wider variant for the per-device admin panel, which packs the info grid,
+   compliance matrix, whitelist, usage table and live log feed. */
+.modal.modal-wide{max-width:1040px;padding:30px 32px}
+@media(min-width:1000px){
+  .modal.modal-wide .m-usage-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  /* let the logs column shrink below its content so nowrap log lines don't
+     force the grid (and the modal) to overflow horizontally; the usage table
+     column keeps its natural width so every column stays visible */
+  .modal.modal-wide .m-usage-cols > *:last-child{min-width:0}
+}
 .modal-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px}
 .modal-head h3{font-size:19px;flex:1}
 .modal-x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:22px;line-height:1;
@@ -458,8 +468,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
 .danger-zone{border-color:rgba(208,59,59,.35)}
 .lock-overlay{position:absolute;top:14px;right:14px}
 
+/* ── In-zone app usage table (device modal) ── */
+.usage-tbl{width:100%}
+.usage-tbl .meter{margin:0}
+.usage-tbl .mono{display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;vertical-align:middle}
+
 /* ── Live device log feed (device modal) ── */
-.logfeed{max-height:230px;overflow-y:auto;border-radius:var(--r-sm);background:var(--inset-bg);
+.logfeed{max-height:230px;overflow-y:auto;overflow-x:auto;border-radius:var(--r-sm);background:var(--inset-bg);
   box-shadow:var(--neo-in);padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.7}
 .lg-line{display:flex;gap:9px;align-items:baseline;white-space:nowrap}
 .lg-t{color:var(--faint);flex:none}
