@@ -16,6 +16,14 @@
   var yr = document.getElementById('yr');
   if (yr) yr.textContent = new Date().getFullYear();
 
+  // ---- Admin Console URL ----------------------------------------------------
+  // ★ CHANGE THIS ONE LINE after deploying /dashboard (your Netlify/Vercel URL).
+  // Every "Dashboard" button/link on the site ([data-dashboard]) points here.
+  var DASHBOARD_URL = 'https://env-guardian-dashboard.vercel.app';
+  document.querySelectorAll('[data-dashboard]').forEach(function (a) {
+    a.setAttribute('href', DASHBOARD_URL);
+  });
+
   // ---- scroll progress bar ----
   var prog = document.createElement('div');
   prog.id = 'progress';
