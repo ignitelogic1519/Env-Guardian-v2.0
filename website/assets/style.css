@@ -108,7 +108,10 @@ h3{font-size:20px}
    floating status cards around it. data-state="safe|secure" flips the
    screen, glow, rings and card copy together (JS toggles it on a loop). */
 .hero{padding:46px 0 30px;overflow:hidden}
-.hero-copy{text-align:center;max-width:920px;margin:0 auto}
+/* keep the copy (and its CTA buttons) above the stage decorations — the rings,
+   sweep and glow overflow the stage upward and would otherwise paint over and
+   swallow clicks meant for the buttons */
+.hero-copy{text-align:center;max-width:920px;margin:0 auto;position:relative;z-index:5}
 .hero-copy h1{font-size:clamp(32px,4.6vw,56px);margin:14px 0 10px}
 .hero-copy .lead{margin:0 auto;max-width:660px}
 .hero-copy .cta{justify-content:center;margin-top:20px}
@@ -117,12 +120,13 @@ h3{font-size:20px}
        display:grid;place-items:center}
 /* state-dependent glow behind the phone */
 .stage::before{content:"";position:absolute;width:640px;height:520px;border-radius:50%;filter:blur(70px);
-       background:radial-gradient(closest-side,rgba(20,184,166,.20),transparent 70%);transition:background 1s}
+       background:radial-gradient(closest-side,rgba(20,184,166,.20),transparent 70%);transition:background 1s;
+       pointer-events:none}
 .stage[data-state="secure"]::before{background:radial-gradient(closest-side,rgba(79,110,247,.24),transparent 70%)}
 
 /* geofence rings + radar sweep */
 .rings,.rings i,.sweep{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);border-radius:50%}
-.rings{width:0;height:0}
+.rings{width:0;height:0;pointer-events:none}
 .rings i{border:1.5px dashed rgba(20,184,166,.35);transition:border-color 1s}
 .rings i:nth-child(1){width:340px;height:340px}
 .rings i:nth-child(2){width:520px;height:520px;opacity:.7}
