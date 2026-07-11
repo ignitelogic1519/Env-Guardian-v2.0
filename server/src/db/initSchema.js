@@ -99,6 +99,17 @@ const STATEMENTS = [
      role      varchar(20),
      ts        bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
    )`,
+  // Device enforcement log stream — powers the dashboard's real-time "Live logs"
+  // view. Devices push their allow/block/VPN events here (batched); the dashboard
+  // polls them back per device. `kind` distinguishes 'block' / 'allow' / 'vpn'.
+  `CREATE TABLE IF NOT EXISTS public.device_logs (
+     id       BIGSERIAL PRIMARY KEY,
+     emp_id   varchar(50) NOT NULL,
+     ts       bigint      NOT NULL,
+     package  text,
+     blocked  boolean     NOT NULL DEFAULT false,
+     kind     varchar(12) NOT NULL DEFAULT 'event'
+   )`,
 
   // ── Column backfills for older databases (schema drift) ───────────────────
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS user_id integer`,
@@ -145,6 +156,8 @@ const STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS app_policies_emp_pkg_key ON public.app_policies (emp_id, package)`,
   `CREATE INDEX IF NOT EXISTS idx_app_policies_emp ON public.app_policies (emp_id)`,
   `CREATE INDEX IF NOT EXISTS idx_login_events_ts ON public.login_events (ts DESC)`,
+  // Device log stream: fetch newest-first per device efficiently.
+  `CREATE INDEX IF NOT EXISTS idx_device_logs_emp_ts ON public.device_logs (emp_id, ts DESC)`,
 ];
 
 // Default restricted zone (Zone 1 — Surat, Gujarat).

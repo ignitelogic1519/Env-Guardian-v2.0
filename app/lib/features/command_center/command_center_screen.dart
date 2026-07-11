@@ -183,6 +183,11 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     // STOPS on zone exit even when the UI is closed. Pushing the fresh whitelist
     // above is all the UI needs to do; no Flutter-side VPN calls here.
 
+    // Stream buffered native enforcement logs to the server for the dashboard's
+    // live feed (the background loop also does this when the UI is closed).
+    // Fire-and-forget so a slow network never stalls this 5s UI sync.
+    if (_empId.isNotEmpty) { CloudSync.flushPendingLogs(_empId).catchError((_) {}); }
+
     if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _notifAccessOk = na; _autostartAck = asAck; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _vpnLive = vLive; _verifiedSince = p.getInt('verified_since') ?? 0; });
     _refreshRunning();
   }

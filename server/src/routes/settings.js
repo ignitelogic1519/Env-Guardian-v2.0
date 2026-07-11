@@ -80,18 +80,41 @@ router.put("/settings/geofence", requireAuth, requireRole("admin", "manager"), a
 
 // PUT /api/settings/whitelisted-apps
 // Body: { apps: string[] }
+//
+// The global whitelist lives in the single settings row (id = 1). Historically
+// this was a plain UPDATE ... WHERE id = 1, which silently affected ZERO rows —
+// and still returned success — on any database whose settings row hadn't been
+// seeded at id = 1 (schema drift / a partially-provisioned DB). That is exactly
+// the "dashboard says saved but nothing persists" symptom. We now UPSERT so the
+// write always lands, and we verify a row actually changed before reporting ok.
 router.put("/settings/whitelisted-apps", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { apps } = req.body;
     if (!Array.isArray(apps)) {
       return res.status(400).json({ success: false, error: "apps must be an array of package names" });
     }
+    // Reject anything that isn't a clean list of package-name strings.
+    const clean = apps.filter((a) => typeof a === "string").map((a) => a.trim()).filter(Boolean);
 
     const result = await pool.query(
-      "UPDATE public.system_settings SET whitelisted_apps = $1::jsonb, updated_at = $2 WHERE id = 1 RETURNING id, whitelisted_apps",
-      [JSON.stringify(apps), Date.now()]
+      `INSERT INTO public.system_settings (id, whitelisted_apps, updated_at, admin_password, geofence_polygon, qr_secret)
+         VALUES (1, $1::jsonb, $2,
+                 COALESCE((SELECT admin_password   FROM public.system_settings WHERE id = 1), $3),
+                 COALESCE((SELECT geofence_polygon FROM public.system_settings WHERE id = 1), '[]'::jsonb),
+                 COALESCE((SELECT qr_secret        FROM public.system_settings WHERE id = 1), $4))
+       ON CONFLICT (id) DO UPDATE SET
+         whitelisted_apps = EXCLUDED.whitelisted_apps,
+         updated_at       = EXCLUDED.updated_at
+       RETURNING id, whitelisted_apps`,
+      [JSON.stringify(clean), Date.now(),
+       process.env.ADMIN_PASSWORD || "FoldedSteel2026",
+       process.env.QR_SECRET || process.env.API_KEY || "FoldedSteelSecret2026"]
     );
 
+    if (result.rows.length === 0) {
+      return res.status(500).json({ success: false, error: "Whitelist was not saved (no row affected)" });
+    }
+    console.log(`[SETTINGS] Global whitelist saved (${clean.length} apps)`);
     res.json({ success: true, settings: result.rows[0] });
   } catch (err) {
     console.error("[SETTINGS] Update whitelisted apps error:", err.message);

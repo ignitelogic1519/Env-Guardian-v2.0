@@ -144,6 +144,50 @@ class CloudSync {
     }
   }
 
+  // ── Real-time device logs ──────────────────────────────────────────────────
+  // The native enforcer (AppBlockerService) appends every allow/block/VPN event
+  // to a pending buffer in SharedPreferences ('eg_pending_logs'). This flushes
+  // that buffer to the server so the dashboard can show a live per-device feed.
+  // Sent events are removed from the FRONT (oldest) of the buffer; the native
+  // side only ever appends to the end, so this is race-safe.
+  static Future<bool> _postDeviceLogs(String empId, List<dynamic> logs) async {
+    try {
+      final res = await http.post(
+        Uri.parse("$baseUrl/api/device-logs"),
+        headers: {"Content-Type": "application/json", "x-api-key": apiKey},
+        body: json.encode({"empId": empId, "logs": logs}),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      return false; // offline — keep the buffer for the next flush
+    }
+  }
+
+  static Future<void> flushPendingLogs(String empId) async {
+    if (empId.isEmpty) return;
+    final p = await SharedPreferences.getInstance();
+    final raw = p.getString('eg_pending_logs');
+    if (raw == null || raw.isEmpty || raw == '[]') return;
+
+    List<dynamic> list;
+    try { list = json.decode(raw) as List<dynamic>; }
+    catch (_) { await p.remove('eg_pending_logs'); return; }
+    if (list.isEmpty) return;
+
+    // Send at most 200 per flush to keep requests small.
+    final batch = list.length > 200 ? list.sublist(0, 200) : list;
+    final ok = await _postDeviceLogs(empId, batch);
+    if (!ok) return; // leave the buffer intact; retry next tick
+
+    // Re-read (the native side may have appended more) and drop the sent prefix.
+    await p.reload();
+    final rawNow = p.getString('eg_pending_logs') ?? '[]';
+    List<dynamic> cur;
+    try { cur = json.decode(rawNow) as List<dynamic>; } catch (_) { cur = []; }
+    final remaining = cur.length > batch.length ? cur.sublist(batch.length) : <dynamic>[];
+    await p.setString('eg_pending_logs', json.encode(remaining));
+  }
+
   static Future<void> executeAmnesiaProtocol(String empId) async {
     try {
       await http.post(Uri.parse(clearAutoLockUrl), headers: {"Content-Type": "application/json", "x-api-key": apiKey}, body: json.encode({"empId": empId})).timeout(const Duration(seconds: 5));

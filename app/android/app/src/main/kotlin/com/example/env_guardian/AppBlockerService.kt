@@ -51,10 +51,17 @@ class AppBlockerService : AccessibilityService() {
                         file.writeText(currentTime)
                     } catch (e: Exception) {}
 
-                    // 3. Recompute the effective whitelist (base minus time-exhausted
-                    //    apps) natively, so whitelist changes AND per-app time limits
-                    //    take effect even when the Flutter UI is closed.
-                    reconcileWhitelist(prefs)
+                    // 3a. Accumulate per-app usage that happened WHILE INSIDE THE ZONE
+                    //     (not whole-day usage). Computed natively so it works with the
+                    //     UI closed; persisted to eg_inzone_usage for enforcement +
+                    //     server reporting.
+                    val inZoneUsage = computeInZoneUsage(prefs)
+
+                    // 3b. Recompute the effective whitelist (base minus time-exhausted
+                    //     apps) natively, so whitelist changes AND per-app time limits
+                    //     take effect even when the Flutter UI is closed. Time limits are
+                    //     measured against IN-ZONE usage only.
+                    reconcileWhitelist(prefs, inZoneUsage)
 
                     // 4. Network Guard reconciliation. Done natively (not via a Flutter
                     //    method channel) so it works even when the UI is closed — this
@@ -94,7 +101,7 @@ class AppBlockerService : AccessibilityService() {
     // policy app that is disabled or has spent its daily budget (usage read natively),
     // then persist the result. If the base hasn't been written yet we leave the last
     // known whitelist untouched (never blanket-block).
-    private fun reconcileWhitelist(prefs: android.content.SharedPreferences) {
+    private fun reconcileWhitelist(prefs: android.content.SharedPreferences, usage: Map<String, Long>) {
         try {
             val baseJson = prefs.getString("flutter.eg_base_whitelist", null) ?: return
             val effective = HashSet<String>()
@@ -108,7 +115,6 @@ class AppBlockerService : AccessibilityService() {
                 val policiesStr = prefs.getString("flutter.app_policies", "[]") ?: "[]"
                 val policies = try { JSONArray(policiesStr) } catch (e: Exception) { JSONArray() }
                 if (policies.length() > 0) {
-                    val usage = getTodayUsageNative()
                     for (i in 0 until policies.length()) {
                         val pol = policies.optJSONObject(i) ?: continue
                         val pkg = pol.optString("package", "")
@@ -147,6 +153,81 @@ class AppBlockerService : AccessibilityService() {
             e.printStackTrace()
         }
         return out
+    }
+
+    // Accumulates per-app foreground time that accrued WHILE THE DEVICE IS INSIDE THE
+    // RESTRICTED ZONE (today only), rather than whole-day usage. This is what per-app
+    // time limits are measured against and what gets reported to the server.
+    //
+    // How it works: UsageStatsManager only gives cumulative day totals, so each pulse
+    // we diff the current totals against the previous snapshot and add the positive
+    // delta to the in-zone accumulator ONLY when the device is currently in the zone.
+    // Everything is keyed by the local date and resets at midnight. Persisted to
+    // 'flutter.eg_inzone_usage' (read by Dart for reporting) and 'eg_usage_snapshot'
+    // (native-only bookkeeping).
+    private fun computeInZoneUsage(prefs: android.content.SharedPreferences): Map<String, Long> {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val current = getTodayUsageNative()
+        val inzone = HashMap<String, Long>()
+
+        // Load the persisted in-zone accumulator (reset if it's from another day).
+        try {
+            val s = prefs.getString("flutter.eg_inzone_usage", null)
+            if (s != null) {
+                val o = JSONObject(s)
+                if (o.optString("date", today) == today) {
+                    val u = o.optJSONObject("usage") ?: JSONObject()
+                    val it = u.keys()
+                    while (it.hasNext()) { val k = it.next(); inzone[k] = u.optLong(k, 0L) }
+                }
+            }
+        } catch (e: Exception) { /* start fresh */ }
+
+        // Load the previous full-day snapshot for delta computation.
+        val snap = HashMap<String, Long>()
+        var snapDate = ""
+        try {
+            val s = prefs.getString("eg_usage_snapshot", null)
+            if (s != null) {
+                val o = JSONObject(s)
+                snapDate = o.optString("date", "")
+                val u = o.optJSONObject("snap") ?: JSONObject()
+                val it = u.keys()
+                while (it.hasNext()) { val k = it.next(); snap[k] = u.optLong(k, 0L) }
+            }
+        } catch (e: Exception) { /* no snapshot yet */ }
+
+        val inZone = prefs.getBoolean("flutter.in_restricted_zone", false)
+
+        // Add deltas only while in the zone AND when we have a same-day snapshot to
+        // diff against (so we never retro-count usage from before entry / from before
+        // midnight). A package not in the previous snapshot contributes nothing this
+        // pulse (prev defaults to its current total).
+        if (inZone && snapDate == today) {
+            for ((pkg, cur) in current) {
+                val prev = snap[pkg] ?: cur
+                val delta = cur - prev
+                if (delta > 0) inzone[pkg] = (inzone[pkg] ?: 0L) + delta
+            }
+        }
+
+        // Persist the accumulator (Dart-readable) and refresh the snapshot.
+        try {
+            val io = JSONObject(); val iu = JSONObject()
+            for ((k, v) in inzone) iu.put(k, v)
+            io.put("date", today); io.put("usage", iu)
+
+            val so = JSONObject(); val su = JSONObject()
+            for ((k, v) in current) su.put(k, v)
+            so.put("date", today); so.put("snap", su)
+
+            prefs.edit()
+                .putString("flutter.eg_inzone_usage", io.toString())
+                .putString("eg_usage_snapshot", so.toString())
+                .commit()
+        } catch (e: Exception) { e.printStackTrace() }
+
+        return inzone
     }
 
     // Keeps the Network Guard VPN in sync with the desired state, entirely on the
@@ -212,6 +293,34 @@ class AppBlockerService : AccessibilityService() {
             ironLedger.add(0, mapOf("package" to msg, "blocked" to false, "time" to time))
             if (ironLedger.size > 200) ironLedger.removeLast()
             Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, false, time) }
+            persistLog(msg, false, time, "vpn")
+        } catch (e: Exception) { /* logging must never break enforcement */ }
+    }
+
+    // Appends an enforcement event to a persistent buffer (SharedPreferences) that
+    // the Dart layer flushes to the server, so the dashboard can show these logs in
+    // real time. Same-process with the UI/background isolate, so the shared prefs
+    // file is a reliable hand-off (matches the existing native_whitelist pattern).
+    // Capped so a long session can't grow it without bound.
+    private fun persistLog(pkg: String, blocked: Boolean, time: String, kind: String) {
+        try {
+            val prefs = applicationContext.getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+            val cur = prefs.getString("flutter.eg_pending_logs", "[]") ?: "[]"
+            val arr = try { JSONArray(cur) } catch (e: Exception) { JSONArray() }
+            val o = JSONObject()
+            o.put("package", pkg)
+            o.put("blocked", blocked)
+            o.put("time", time)
+            o.put("ts", System.currentTimeMillis())
+            o.put("kind", kind)
+            arr.put(o)
+            // Keep only the most recent 300 (drop from the front if over).
+            val out = if (arr.length() > 300) {
+                val t = JSONArray()
+                for (i in (arr.length() - 300) until arr.length()) t.put(arr.get(i))
+                t
+            } else arr
+            prefs.edit().putString("flutter.eg_pending_logs", out.toString()).commit()
         } catch (e: Exception) { /* logging must never break enforcement */ }
     }
 
@@ -228,17 +337,29 @@ class AppBlockerService : AccessibilityService() {
             .getLong("flutter.enforcement_grace_until", 0L)
         if (System.currentTimeMillis() < grace) return
 
-        // 1. Anti-Tamper Dagger Shield
-        if (packageName == "com.android.settings" || packageName == "com.android.systemui") {
+        // 1. Anti-Tamper Dagger Shield — blocks force-stop / disable / UNINSTALL of
+        // this app. Previously it only watched stock Settings + SystemUI, so on
+        // ColorOS/Realme (and Oppo/OnePlus) the user could still uninstall: those
+        // skins show the uninstall confirmation in a package-installer package
+        // (com.*.packageinstaller) — and a launcher long-press → Uninstall goes
+        // straight there, never touching com.android.settings. We now also inspect
+        // those shells and match the "Uninstall" action, not just "Force stop".
+        if (isTamperShell(packageName)) {
             val rootNode = rootInActiveWindow
             if (rootNode != null) {
-                val foundApp = rootNode.findAccessibilityNodeInfosByText("Env Guardian")
-                if (!foundApp.isNullOrEmpty()) {
-                    val foundStop = rootNode.findAccessibilityNodeInfosByText("Stop")
-                    val foundForce = rootNode.findAccessibilityNodeInfosByText("Force stop")
-                    val foundActive = rootNode.findAccessibilityNodeInfosByText("Active in background")
-
-                    if (!foundStop.isNullOrEmpty() || !foundForce.isNullOrEmpty() || !foundActive.isNullOrEmpty()) {
+                // Only act when THIS app is the target on screen (its label is shown
+                // on the app-details page and in the uninstall dialog). Uninstalling
+                // OTHER apps never shows "Env Guardian", so it's unaffected.
+                val mentionsUs = !rootNode.findAccessibilityNodeInfosByText("Env Guardian").isNullOrEmpty()
+                if (mentionsUs) {
+                    val tamperActions = listOf(
+                        "Uninstall", "Uninstall app", "Force stop", "Force-stop",
+                        "Stop", "Disable", "Active in background"
+                    )
+                    val tampering = tamperActions.any {
+                        !rootNode.findAccessibilityNodeInfosByText(it).isNullOrEmpty()
+                    }
+                    if (tampering) {
                         performGlobalAction(GLOBAL_ACTION_HOME)
                         return
                     }
@@ -261,6 +382,7 @@ class AppBlockerService : AccessibilityService() {
                 ironLedger.add(0, logEntry)
                 if (ironLedger.size > 200) ironLedger.removeLast()
                 Handler(Looper.getMainLooper()).post { logListener?.invoke(packageName, isBlocked, timeString) }
+                persistLog(packageName, isBlocked, timeString, if (isBlocked) "block" else "allow")
 
                 if (isBlocked) {
                     performGlobalAction(GLOBAL_ACTION_HOME)
@@ -282,6 +404,25 @@ class AppBlockerService : AccessibilityService() {
         if (isCoreSystemApp(pkg)) return false
         if (whitelist.contains(pkg)) return false
         return true
+    }
+
+    // Packages whose screens can be used to force-stop / disable / uninstall this
+    // app, so the anti-tamper shield must inspect them. Covers stock Settings +
+    // SystemUI, every OEM package-installer variant (ColorOS/Realme, Oppo, OnePlus,
+    // MIUI, Google, stock — matched by the shared "packageinstaller" substring), and
+    // the ColorOS/Oppo security-center + settings packages.
+    private fun isTamperShell(pkg: String): Boolean {
+        if (pkg == "com.android.settings" || pkg == "com.android.systemui") return true
+        if (pkg.contains("packageinstaller")) return true
+        val oemShells = setOf(
+            "com.coloros.safecenter",
+            "com.oplus.safecenter",
+            "com.coloros.settings",
+            "com.oplus.settings",
+            "com.oppo.settings",
+            "com.miui.securitycenter"
+        )
+        return oemShells.contains(pkg)
     }
 
     private fun isCoreSystemApp(pkg: String): Boolean {

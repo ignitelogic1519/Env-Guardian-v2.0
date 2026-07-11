@@ -455,6 +455,7 @@ router.delete("/dashboard/agents/:empId", requireAuth, requireRole("admin"), asy
     // Remove dependent rows first (no FK, so clean up manually).
     await pool.query("DELETE FROM public.app_usage WHERE emp_id = $1", [empId]);
     await pool.query("DELETE FROM public.app_policies WHERE emp_id = $1", [empId]);
+    await pool.query("DELETE FROM public.device_logs WHERE emp_id = $1", [empId]).catch(() => {});
     const result = await pool.query(
       "DELETE FROM public.agents WHERE emp_id = $1 RETURNING emp_id, emp_name",
       [empId]
@@ -472,22 +473,28 @@ router.delete("/dashboard/agents/:empId", requireAuth, requireRole("admin"), asy
 
 // POST /api/dashboard/update-whitelist
 // Body: { empId, whitelist: string[] }
+// Sets the per-device custom whitelist. A 0-row result means the emp_id doesn't
+// exist — surfaced as a 404 so the dashboard shows a real error instead of a
+// false "saved" toast.
 router.post("/dashboard/update-whitelist", requireAuth, requireRole("admin", "manager"), async (req, res) => {
   try {
     const { empId, whitelist } = req.body;
     if (!empId || !Array.isArray(whitelist)) {
       return res.status(400).json({ success: false, error: "empId and whitelist[] required" });
     }
+    // Coerce to a clean list of package-name strings (drops null/blank/non-string).
+    const clean = whitelist.filter((a) => typeof a === "string").map((a) => a.trim()).filter(Boolean);
 
     const result = await pool.query(
       "UPDATE public.agents SET custom_whitelist = $1::jsonb WHERE emp_id = $2 RETURNING emp_id, custom_whitelist",
-      [JSON.stringify(whitelist), empId]
+      [JSON.stringify(clean), empId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Agent not found" });
     }
 
+    console.log(`[DASHBOARD] Custom whitelist saved for ${empId} (${clean.length} apps)`);
     res.json({ success: true, agent: result.rows[0] });
   } catch (err) {
     console.error("[DASHBOARD] Update whitelist error:", err.message);

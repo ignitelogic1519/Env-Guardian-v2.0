@@ -18,6 +18,10 @@ try { appUsageRoutes = require("./routes/appUsage"); } catch(e) { console.log("a
 let policiesRoutes;
 try { policiesRoutes = require("./routes/policies"); } catch(e) { console.log("policies route not found, skipping"); }
 
+// Device enforcement log stream (real-time dashboard logs) — optional.
+let deviceLogsRoutes;
+try { deviceLogsRoutes = require("./routes/deviceLogs"); } catch(e) { console.log("deviceLogs route not found, skipping"); }
+
 // Aegis website chatbot (LLM proxy) — optional.
 let aegisRoutes;
 try { aegisRoutes = require("./routes/aegis"); } catch(e) { console.log("aegis route not found, skipping"); }
@@ -92,6 +96,7 @@ app.use("/api",            agentRoutes);
 app.use("/api",            settingsRoutes);
 if (appUsageRoutes) app.use("/api/app-usage", appUsageRoutes);
 if (policiesRoutes) app.use("/api/policies", policiesRoutes);
+if (deviceLogsRoutes) app.use("/api/device-logs", deviceLogsRoutes);
 if (aegisRoutes) app.use("/api/aegis", aegisRoutes);
 if (usersRoutes) app.use("/api/users", usersRoutes);
 

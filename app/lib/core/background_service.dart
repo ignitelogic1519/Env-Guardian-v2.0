@@ -172,6 +172,10 @@ void onStart(ServiceInstance service) async {
       await CloudSync.sendPulse(empId, cLat, cLng, insideGeofence, enforcerAlive, inventory, autoLock, compMatrix).timeout(const Duration(seconds: 5));
     } catch (_) {}
 
+    // Push any buffered native enforcement logs to the server so the dashboard's
+    // live feed updates even while the UI is closed.
+    try { await CloudSync.flushPendingLogs(empId).timeout(const Duration(seconds: 6)); } catch (_) {}
+
     try {
       Set<String> mergedWhitelist = {
         ...(prefs.getStringList('global_whitelist') ?? []),
@@ -240,20 +244,42 @@ void onStart(ServiceInstance service) async {
   });
 }
 
-// Applies per-app daily time limits set by the admin.
-// Removes from [whitelist] any app that is policy-disabled or has exhausted its
-// daily budget, so the native blocker will block it. Also reports usage upstream.
+// Reads the IN-ZONE per-app usage accumulator that the native enforcer
+// (AppBlockerService.computeInZoneUsage) maintains — usage counted only while the
+// device was inside the restricted zone today, keyed by package. Returns {} if it
+// hasn't been populated yet (→ fail open, no extra blocks).
+Map<String, int> readInZoneUsage(SharedPreferences prefs) {
+  try {
+    final s = prefs.getString('eg_inzone_usage');
+    if (s == null || s.isEmpty) return {};
+    final o = json.decode(s) as Map<String, dynamic>;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    if (o['date'] != today || o['usage'] is! Map) return {};
+    final Map<String, int> out = {};
+    (o['usage'] as Map).forEach((k, v) { out[k.toString()] = (v as num).toInt(); });
+    return out;
+  } catch (_) {
+    return {};
+  }
+}
+
+// Applies per-app daily time limits set by the admin, measured against IN-ZONE
+// usage only (not whole-day). Removes from [whitelist] any app that is
+// policy-disabled or has exhausted its in-zone daily budget, so the native
+// blocker will block it. Also reports the in-zone usage upstream.
 Future<void> enforceTimeLimits(SharedPreferences prefs, String empId, Set<String> whitelist) async {
   try {
     final Map<String, dynamic> flags = json.decode(prefs.getString('feature_flags') ?? '{}') as Map<String, dynamic>;
+
+    // In-zone usage is reported regardless of the time-limit feature so the
+    // dashboard's usage table always reflects real in-zone activity.
+    final Map<String, int> usage = readInZoneUsage(prefs);
+    if (empId.isNotEmpty && usage.isNotEmpty) await CloudSync.sendAppUsage(empId, usage);
+
     if (flags['app_time_limits'] != true) return; // feature not unlocked for this user
 
     final List<dynamic> policies = json.decode(prefs.getString('app_policies') ?? '[]') as List<dynamic>;
     if (policies.isEmpty) return;
-
-    // Today's per-app foreground time (ms), from the native UsageStatsManager.
-    final Map<dynamic, dynamic> raw = await platformBlocker.invokeMethod('getTodayUsage') ?? {};
-    final Map<String, int> usage = raw.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
 
     for (final pol in policies) {
       final String pkg = (pol['package'] ?? '').toString();
@@ -261,16 +287,13 @@ Future<void> enforceTimeLimits(SharedPreferences prefs, String empId, Set<String
       final bool enabled = pol['enabled'] ?? true;
       final int limit = (pol['daily_limit_ms'] as num?)?.toInt() ?? 0;
       final int used = usage[pkg] ?? 0;
-      // Disabled app, or used up its daily budget → block it (drop from whitelist).
+      // Disabled app, or used up its in-zone daily budget → block it.
       if (!enabled || (limit > 0 && used >= limit)) {
         whitelist.remove(pkg);
       }
     }
-
-    // Report usage to the server (powers the dashboard's usage history).
-    if (empId.isNotEmpty) await CloudSync.sendAppUsage(empId, usage);
   } catch (_) {
-    // Usage access not granted yet, or platform error — fail open (no extra blocks).
+    // Usage access not granted yet, or a parse error — fail open (no extra blocks).
   }
 }
 

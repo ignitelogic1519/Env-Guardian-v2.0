@@ -13,6 +13,7 @@ const apiBase = () => (localStorage.getItem("eg_api_base") || CFG.API_BASE || ""
 
 let session = null;             // { token, user:{id,username,fullName,role,org} }
 let pageTimers = [];            // intervals owned by the current page
+let modalTimer = null;          // interval owned by the open modal (e.g. live logs)
 let currentPage = null;
 
 try { session = JSON.parse(sessionStorage.getItem("eg_session")); } catch {}
@@ -156,6 +157,7 @@ function openModal(html) {
 function closeModal() {
   $("#modalBg").classList.remove("on");
   document.body.style.overflow = "";
+  if (modalTimer) { clearInterval(modalTimer); modalTimer = null; }
 }
 $("#modalBg").addEventListener("click", (e) => { if (e.target.id === "modalBg") closeModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -618,8 +620,16 @@ async function openDeviceModal(empId) {
       </div>` : ""}
     </div>
 
-    <div class="m-sec"><h4>App usage today</h4>
-      ${usage.length ? `<div class="chips">${usage.slice(0, 8).map((u) => `<span class="chip">${esc(u.package)} · ${msHuman(u.totalMs)}</span>`).join("")}</div>` : '<span class="hint">No usage reported today.</span>'}
+    <div class="m-sec"><h4>App usage in zone (today)</h4>
+      <p class="hint" style="margin:0 0 8px">Time each app was used <b>while inside the restricted zone</b> today — this is what per-app limits are measured against.</p>
+      ${usage.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Package</th><th style="text-align:right">In-zone time</th></tr></thead>
+        <tbody>${usage.slice(0, 12).map((u) => `<tr><td class="mono">${esc(u.package)}</td><td class="num" style="text-align:right">${msHuman(u.totalMs)}</td></tr>`).join("")}</tbody></table></div>`
+        : '<span class="hint">No in-zone usage reported today.</span>'}
+    </div>
+
+    <div class="m-sec"><h4>Live logs <span class="live-dot"><i></i>Live</span></h4>
+      <p class="hint" style="margin:0 0 8px">Real-time allow / block / network events from the device (updates every few seconds).</p>
+      <div class="logfeed" id="mLogs"><span class="hint">Connecting to the device log stream…</span></div>
     </div>
 
     <div class="m-sec" style="display:flex;gap:10px;flex-wrap:wrap">
@@ -664,6 +674,31 @@ async function openDeviceModal(empId) {
       toast(`${empId} unenrolled`); closeModal(); navigate(currentPage);
     } catch (ex) { toast(ex.message, "err"); }
   });
+
+  // ── Live logs: poll the device's enforcement log stream while the modal is open ──
+  const logRow = (l) => {
+    const t = new Date(l.ts);
+    const hh = String(t.getHours()).padStart(2, "0"), mm = String(t.getMinutes()).padStart(2, "0"), ss = String(t.getSeconds()).padStart(2, "0");
+    const tag = l.kind === "vpn" ? "NETWORK" : (l.blocked ? "BLOCKED" : "ALLOWED");
+    const cls = l.kind === "vpn" ? "lg-vpn" : (l.blocked ? "lg-block" : "lg-allow");
+    return `<div class="lg-line ${cls}"><span class="lg-t">${hh}:${mm}:${ss}</span><span class="lg-tag">[${tag}]</span><span class="lg-pkg">${esc(l.package || "")}</span></div>`;
+  };
+  async function refreshLogs() {
+    const box = $("#mLogs");
+    if (!box) { if (modalTimer) { clearInterval(modalTimer); modalTimer = null; } return; }
+    try {
+      const r = await api(`/api/device-logs/${encodeURIComponent(empId)}?limit=80`);
+      const logs = r.logs || [];
+      box.innerHTML = logs.length
+        ? logs.map(logRow).join("")
+        : '<span class="hint">No enforcement events yet. Events appear when the device blocks or allows an app inside the zone.</span>';
+    } catch (e) {
+      box.innerHTML = `<span class="hint">Could not load logs: ${esc(e.message)}</span>`;
+    }
+  }
+  if (modalTimer) { clearInterval(modalTimer); modalTimer = null; }
+  refreshLogs();
+  modalTimer = setInterval(refreshLogs, 4000);
 }
 
 // ═══════════ PAGE: METRICS ═══════════
@@ -775,7 +810,7 @@ RENDER.policies = async (view) => {
     </div>
 
     <div class="glass card rv" style="margin-top:18px">
-      <div class="sect-h" style="margin:0 0 14px"><div><h3>Per-device policies</h3><p>Daily time limits + per-app rules for one employee (feature key required on the device).</p></div></div>
+      <div class="sect-h" style="margin:0 0 14px"><div><h3>Per-device policies</h3><p>Per-app time budgets — counted only while the device is <b>inside the restricted zone</b> — for one employee (feature key required on the device).</p></div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;max-width:640px">
         <input class="input" id="polSearch" placeholder="Filter devices by name or ID…" style="max-width:280px" />
         <select class="input" id="polDev" style="flex:1;min-width:240px"></select>
@@ -831,7 +866,7 @@ RENDER.policies = async (view) => {
       <div class="sect-h" style="margin-top:18px"><div><h3 style="font-size:14px">Add / update a policy</h3></div></div>
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end" class="pol-form">
         <div class="field" style="margin:0"><label>Package</label><input class="input" id="npPkg" placeholder="com.google.android.youtube" /></div>
-        <div class="field" style="margin:0"><label>Minutes / day (0 = unlimited)</label><input class="input" id="npMin" type="number" min="0" value="30" /></div>
+        <div class="field" style="margin:0"><label>Minutes / day in zone (0 = unlimited)</label><input class="input" id="npMin" type="number" min="0" value="30" /></div>
         <div class="field" style="margin:0"><label>Allowed</label><select class="input" id="npEn"><option value="true">Yes — allowed</option><option value="false">No — always blocked</option></select></div>
         <button class="btn btn-primary" id="npAdd">Apply</button>
       </div>`;

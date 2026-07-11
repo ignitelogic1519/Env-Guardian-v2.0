@@ -458,6 +458,20 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
 .danger-zone{border-color:rgba(208,59,59,.35)}
 .lock-overlay{position:absolute;top:14px;right:14px}
 
+/* ── Live device log feed (device modal) ── */
+.logfeed{max-height:230px;overflow-y:auto;border-radius:var(--r-sm);background:var(--inset-bg);
+  box-shadow:var(--neo-in);padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.7}
+.lg-line{display:flex;gap:9px;align-items:baseline;white-space:nowrap}
+.lg-t{color:var(--faint);flex:none}
+.lg-tag{flex:none;font-weight:700;font-size:11px}
+.lg-pkg{overflow:hidden;text-overflow:ellipsis}
+.lg-block .lg-tag{color:var(--bad-text)}
+.lg-allow .lg-tag{color:var(--good-text)}
+.lg-vpn .lg-tag{color:var(--accent)}
+.lg-block .lg-pkg{color:var(--ink-2)}
+.lg-allow .lg-pkg{color:var(--muted)}
+.lg-vpn .lg-pkg{color:var(--ink-2)}
+
 /* ===== responsive ===== */
 .menu-btn{display:none}
 @media(max-width:860px){

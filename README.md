@@ -77,8 +77,12 @@ env-guardian-v2.0/
 ### 7. App blocking (Zero-Trust enforcer)
 - A native **AccessibilityService** detects the foreground app; inside the zone,
   any **non-whitelisted** app is immediately sent back to the home screen.
-- Includes an **anti-tamper shield** (blocks attempts to force-stop the app via
-  Settings) and a **liveness heartbeat** so the server knows the enforcer is alive.
+- Includes an **anti-tamper shield** (blocks attempts to **force-stop, disable or
+  uninstall** the app) and a **liveness heartbeat** so the server knows the
+  enforcer is alive. The shield watches stock Settings/SystemUI **and OEM
+  package-installers** (`com.*.packageinstaller`), so uninstall is blocked on
+  ColorOS/Realme (and Oppo/OnePlus/MIUI) where the confirmation dialog — including
+  a launcher long-press → Uninstall — never touches `com.android.settings`.
 
 ### 8. Whitelist management (two-way sync)
 - **Global whitelist** (`system_settings.whitelisted_apps`) — admin-controlled,
@@ -87,12 +91,16 @@ env-guardian-v2.0/
   the admin-locked **Armory** vault.
 - The device enforces the **union** of both.
 
-### 9. Per-app daily time limits
+### 9. Per-app daily time limits (measured **inside the zone only**)
 - Admins define, per user, **which apps** may be used and **for how long per day**
   (`app_policies` table), unlocked by a per-user **feature key**
-  (`agents.feature_flags`).
-- The app measures real usage via the native **UsageStatsManager** and blocks an
-  app once it's **disabled** or **over budget**; usage is reported back to the server.
+  (`agents.feature_flags`). The limit is **set** server-side (dashboard → DB).
+- The budget counts **only usage that accrues while the device is inside the
+  restricted zone** — not whole-day usage. Tracking happens **on the device**:
+  the native enforcer diffs **UsageStatsManager** totals every ~5s and accumulates
+  the delta only while in-zone (`eg_inzone_usage`), resetting daily. An app is
+  blocked once it's **disabled** or **over its in-zone budget**; the in-zone usage
+  is reported back to the server for the dashboard's usage table.
 - Enforcement is computed **natively** (in `AppBlockerService`, every ~5s) from a
   base whitelist Dart publishes + live usage, so time limits apply **even when the
   app is closed** — not just while the Command Center is open.
@@ -127,6 +135,9 @@ env-guardian-v2.0/
   hosted separately for free) covering devices, per-device admin, policy
   controller, QR settings (static/TOTP), enrollment/unenrollment, users & roles
   and a metrics page (logins, compliant vs non-compliant, top apps).
+- **Real-time device logs:** open a device to watch its live allow/block/network
+  events stream in (the app pushes its native enforcement log to the server and
+  the console polls it back every few seconds).
 - Access groups come from the database (`users.role`: `admin` / `manager` /
   `viewer`) and are enforced server-side (`requireRole`).
 - Deploy guide: **[`dashboard/DEPLOYMENT.md`](dashboard/DEPLOYMENT.md)**.
