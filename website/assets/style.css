@@ -37,18 +37,34 @@ img{max-width:100%;display:block}
 @keyframes fl2{0%,100%{transform:translate(0,0)}50%{transform:translate(-60px,40px)}}
 @keyframes fl3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,-30px) scale(1.08)}}
 
-/* ===== Nav ===== */
-.nav{position:sticky;top:14px;z-index:50;max-width:1160px;margin:14px auto;padding:12px 18px;
-     display:flex;align-items:center;justify-content:space-between;border-radius:18px;
-     background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);backdrop-filter:blur(16px);
-     box-shadow:var(--shadow-sm);transition:box-shadow .3s,background .3s}
-.nav.scrolled{background:rgba(255,255,255,.92);box-shadow:var(--shadow)}
+/* ===== Nav — wide glassmorphism bar. Slides in on load, then tints with the
+   brand gradient and compresses once the page is scrolled (.scrolled via JS) */
+.nav{position:sticky;top:12px;z-index:50;width:min(1400px,calc(100% - 28px));margin:12px auto;padding:14px 22px;
+     display:flex;align-items:center;justify-content:space-between;border-radius:20px;
+     background:linear-gradient(135deg,rgba(255,255,255,.66),rgba(255,255,255,.38));
+     border:1px solid rgba(255,255,255,.7);
+     backdrop-filter:blur(22px) saturate(1.7);-webkit-backdrop-filter:blur(22px) saturate(1.7);
+     box-shadow:0 8px 30px -6px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.8);
+     transition:background .5s,border-color .5s,box-shadow .5s,padding .45s var(--spring),top .45s var(--spring);
+     animation:navIn .8s var(--spring) both}
+@keyframes navIn{from{opacity:0;transform:translateY(-26px)}to{opacity:1;transform:none}}
+.nav.scrolled{padding-top:9px;padding-bottom:9px;top:8px;
+     background:linear-gradient(120deg,rgba(79,110,247,.16),rgba(255,255,255,.62) 40%,rgba(255,255,255,.62) 60%,rgba(20,184,166,.16));
+     border-color:rgba(79,110,247,.3);
+     box-shadow:0 18px 44px -14px rgba(79,110,247,.35),inset 0 1px 0 rgba(255,255,255,.85)}
 .brand{font-weight:800;font-size:20px;display:flex;align-items:center;gap:10px}
 .brand svg{width:30px;height:30px}
 .nav-links{display:flex;gap:6px;align-items:center}
-.nav-links a{padding:9px 14px;border-radius:11px;font-size:14.5px;color:var(--muted);font-weight:500;transition:.18s}
+.nav-links a{padding:9px 14px;border-radius:11px;font-size:14.5px;color:var(--muted);font-weight:500;
+     position:relative;transition:color .25s,background .25s}
 .nav-links a:hover{color:var(--ink);background:rgba(79,110,247,.07)}
 .nav-links a.active{color:var(--accent);background:rgba(79,110,247,.09)}
+/* animated gradient underline on plain links (not the pill/button links) */
+.nav-links a:not(.btn):not(.nav-dash)::after{content:"";position:absolute;left:14px;right:14px;bottom:5px;height:2px;
+     border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+     transform:scaleX(0);transform-origin:left;transition:transform .35s var(--spring)}
+.nav-links a:not(.btn):not(.nav-dash):hover::after,
+.nav-links a:not(.btn):not(.nav-dash).active::after{transform:scaleX(1)}
 .nav-links a.nav-dash{color:var(--accent);font-weight:600;border:1px solid rgba(79,110,247,.35);background:rgba(79,110,247,.06)}
 .nav-links a.nav-dash:hover{background:rgba(79,110,247,.14);border-color:var(--accent)}
 .nav-links a.nav-dash span{font-size:12px}
@@ -62,10 +78,12 @@ img{max-width:100%;display:block}
 .hamb span{width:24px;height:2.5px;background:var(--ink);border-radius:2px;transition:.2s}
 @media(max-width:860px){
   .nav-links{position:absolute;top:70px;left:0;right:0;flex-direction:column;align-items:stretch;gap:4px;
-     padding:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-lg);
+     padding:14px;background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.8);border-radius:18px;
+     backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);box-shadow:var(--shadow-lg);
      transform:translateY(-12px);opacity:0;pointer-events:none;transition:.25s var(--spring)}
   .nav-links.open{transform:none;opacity:1;pointer-events:auto}
   .nav-links a{padding:12px 14px}
+  .nav-links a::after{display:none}
   .hamb{display:flex}
   .nav .btn-primary{display:none}
 }
@@ -443,7 +461,7 @@ html:not(.js) .st-text .w{color:inherit}
 
 @media(prefers-reduced-motion:reduce){
   html.js .reveal,.h-line>span{opacity:1;transform:none;animation:none;transition:none}
-  .blob,.float,.blink,.wave,.m-track,.pill::before,.sweep,.fc-in{animation:none}
+  .blob,.float,.blink,.wave,.m-track,.pill::before,.sweep,.fc-in,.nav{animation:none}
   .swap>span,.p2-frames .scr,.rings i,.stage::before{transition:none}
   .scene,.statement{height:auto}
   .scene-pin,.st-pin{position:static;height:auto;min-height:0;padding:84px 0}
