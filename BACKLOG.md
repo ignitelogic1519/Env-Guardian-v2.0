@@ -67,15 +67,18 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 - `README.md` (detailed feature reference), `ADMIN_DB_GUIDE.md` (DB-driven admin
   SQL cookbook), `TEST_CASES.md` (QA plan + server smoke tests), this `BACKLOG.md`
 
-## 🔜 Planned / not yet built
+## 🔜 Rollout status (A–I)
 
-> **Rollout in progress** (one verified commit at a time, safest-first; the
-> codebase can't be compiled in the build sandbox, so each item must be built +
-> tested on a device after it lands). Current status:
-> - **E** — started ✅ (OEM Auto-start helper shipped; watchdog still to do)
-> - **D** — reworked → DB-driven admin (web dashboard deferred)
-> - **A, B, C, F, G, H, I** — specced below, not yet built
-> Order planned: **E → C → G → A → B → F → H**, with I/polish folded in.
+> **All A–I items have now shipped in code** (the web dashboard, item D, is
+> built too). The codebase can't be compiled in the build sandbox, so the
+> heavier native items (A, B) remain **experimental until verified on real
+> hardware**; each still needs a build + QA pass (see
+> [`QA_CHECKLIST.md`](QA_CHECKLIST.md)). Current status:
+> - **A, B, C, E, F, G, H** — ✅ shipped (A/B experimental, device-verify pending)
+> - **D** — ✅ shipped as the role-based web console in [`dashboard/`](dashboard/README.md)
+>   (the DB-driven [`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md) path remains as a fallback)
+> - **I** (polish: chronometer notif, Samsung Knox, Wi-Fi enforcement) — remaining/future
+> Remaining sub-items are called out per-feature below (⬜).
 
 ### A. Pre-scan "clean state" gate  *(shipped — Notification Access now MANDATORY)*
 - ✅ **Notification Access is now a required compliance item** (setup step 8 + a
@@ -144,14 +147,18 @@ between sessions. (Things already shipped are in git history / the READMEs.)
   the app on geofence transition). The always-on foreground service already keeps
   the app alive in the common case.
 
-### D. Admin configuration — DB-driven for now  *(web dashboard deferred)*
-Decision: **no web dashboard yet.** All admin config is done directly in the
-database (Neon SQL) — see **`ADMIN_DB_GUIDE.md`** for copy-paste commands:
-geofence, global + per-device whitelist, per-app time limits, feature keys,
-lock/unlock, QR/password, delete device. No code change needed — the server +
-app already read and sync these values.
-- Future (optional): a web dashboard that simply wraps these same DB operations
-  in a UI, and displays the zone QR (server already has `/api/qr-current`).
+### D. Admin configuration — web dashboard  *(shipped)*
+- ✅ **Role-based web console shipped** in **[`dashboard/`](dashboard/README.md)** —
+  a static SPA (no build step) hosted separately for free. It signs in against
+  `POST /api/auth/login` (JWT) and drives every admin operation through the REST
+  API: fleet overview + metrics, per-device panel (compliance matrix, remote
+  lock, per-device whitelist, today's usage, unenroll), global whitelist + per-app
+  time-limit policies + feature keys, live zone QR (static/TOTP), enrollment
+  walkthrough, users & roles, geofence editor, and a live device-log stream.
+  Role gating (`users.role`: admin/manager/viewer) is enforced server-side
+  (`requireRole`). Deploy guide: **[`dashboard/DEPLOYMENT.md`](dashboard/DEPLOYMENT.md)**.
+- ✅ The DB-driven **`ADMIN_DB_GUIDE.md`** SQL cookbook still works as a fallback
+  for direct database administration — the console simply wraps the same operations.
 
 ### E. OEM background-reliability hardening  *(in progress)*
 Per-OEM onboarding deep-links to keep the service alive on aggressive skins.

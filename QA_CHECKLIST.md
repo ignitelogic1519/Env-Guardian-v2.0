@@ -96,8 +96,10 @@ no way for the user to opt out from inside the app.
 ## 8. User story: leaving the zone (clean teardown)
 - [ ] Verification cleared; **timer resets**; VPN off; apps unblocked; "Safe Zone".
 
-## 9. User story: admin makes a change via the database
-**Situation:** no dashboard — admin edits the DB (see `ADMIN_DB_GUIDE.md`).
+## 9. User story: admin makes a change (web console or database)
+**Situation:** admin changes policy via the [web console](dashboard/README.md) —
+or, as a fallback, edits the DB directly (see `ADMIN_DB_GUIDE.md`). Either path
+propagates to devices within ~10s.
 - [ ] Change geofence → device reflects new zone within ~10s.
 - [ ] Add/remove a global or per-device whitelist app → enforced within ~10s.
 - [ ] Set a per-app time limit / feature flag → enforced.

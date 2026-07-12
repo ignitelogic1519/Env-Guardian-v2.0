@@ -1,6 +1,6 @@
 ===============================================================================
  ENV GUARDIAN v2.0  —  PROJECT SUMMARY
- Generated: 2026-07-03
+ Generated: 2026-07-12
 ===============================================================================
 
 WHAT THIS PROJECT IS
@@ -24,7 +24,8 @@ Key principles:
   reported; devices heartbeat status/location/compliance in real time.
 
 Tech stack: Flutter Android app (native enforcement) + Node.js/Express backend
-+ PostgreSQL (Neon) + Render hosting. Plus a static marketing website (light,
++ PostgreSQL (Neon) + Render hosting. Plus a role-based static web admin console
+(the /dashboard SPA, hosted separately) and a static marketing website (light,
 professional SaaS design; the former AI chat widget has been removed).
 
 Target industries: corporate/IT security, exams & education, healthcare, data
@@ -136,19 +137,29 @@ receives device heartbeats; serves the admin QR page; proxies the website bot.
     db/
       pool.js                PG connection pool (SSL auto-enabled off-localhost).
       initSchema.js          Creates all tables + seeds defaults on a fresh DB
-                             (reports "Schema ready 34/34").
+                             (reports "Schema ready 42/42"). Idempotent: each
+                             statement on its own connection, ALTER-backfills for
+                             older databases.
+      retention.js           Daily prune of NON-essential history (app_usage +
+                             login_events) older than DATA_RETENTION_DAYS (10).
     middleware/
-      auth.js                requireAuth (JWT) + x-api-key checks; optional
-                             per-device-token enforcement (Feature F).
+      auth.js                requireApiKey / requireJWT / requireAuth (either) +
+                             requireRole gate; optional per-device-token
+                             enforcement (Feature F).
     routes/
-      auth.js                Admin login / JWT issue.
+      auth.js                Admin login / JWT issue (+ /verify).
       agents.js              Device (agent) registration, heartbeats, remote
-                             lock, compliance; QR current endpoint. Device
-                             bound to first owner (anti-theft).
-      settings.js            Geofence zone, whitelist, global config (GET needs
-                             auth + x-api-key).
-      appUsage.js            App usage-stats ingestion.
-      policies.js            Per-app daily time-limit policies.
+                             lock, compliance; QR current endpoint; plus the
+                             /api/dashboard/* fleet listing + metrics APIs.
+                             Device bound to first owner (anti-theft).
+      settings.js            Geofence zone, whitelist, QR secret/mode, admin
+                             password (GET needs auth + x-api-key).
+      appUsage.js            App usage-stats ingestion + summaries.
+      policies.js            Per-app daily time-limit policies + feature flags.
+      deviceLogs.js          Live device enforcement-log stream — kept in a short
+                             IN-MEMORY buffer (NOT persisted); console polls it.
+      users.js               Console user management (create/edit/disable/delete;
+                             admin only).
       aegis.js               Website chatbot LLM proxy (DORMANT — the website's
                              chat widget was removed; route kept for future use).
     utils/
@@ -177,6 +188,38 @@ receives device heartbeats; serves the admin QR page; proxies the website bot.
     - In-memory per-IP rate limit (25 req/60s); message sanitizing (last 12,
       valid roles, capped length); 20s AbortController timeout; default model
       claude-haiku-4-5-20251001 (override via LLM_MODEL).
+
+
+-------------------------------------------------------------------------------
+ /dashboard  —  WEB ADMIN CONSOLE  (static SPA, role-based, host separately)
+-------------------------------------------------------------------------------
+An online admin console for the whole fleet: pure static HTML + CSS + vanilla JS
+(no build step), hosted for free on a DIFFERENT site from the backend. It signs
+in against POST /api/auth/login (JWT) and drives every admin operation through
+the existing REST API. Built for large fleets (1000+ devices): every table
+paginates with debounced search; the Overview surfaces the devices needing
+attention first instead of rendering the whole fleet.
+
+  dashboard/
+    index.html               App shell (login + Intune-style nav rail/top bar).
+    assets/
+      config.js              EG_CONFIG: API_BASE, REFRESH_MS, COMPLIANT_AT
+                             (API base can also be set at runtime on the login
+                             screen).
+      app.js                 SPA: auth, router, and all 9 pages.
+      charts.js              Theme-aware chart rendering (metrics page).
+      style.css              Two themes on one shell (dark glassmorphism / light
+                             SaaS), switched by the sun/moon toggle; springy
+                             staggered reveals; honours prefers-reduced-motion.
+    README.md                Pages + full RBAC matrix.
+    DEPLOYMENT.md            Free-hosting deploy guide (Netlify/Vercel/Pages/
+                             Cloudflare/Render) + CORS notes.
+
+  Pages (9): Home, Overview, Devices, Metrics, Policy Controller, QR Settings,
+  Enrollment, Users & Roles, Settings. Live device logs stream into the per-
+  device panel (the app pushes its native enforcement log; the console polls it).
+  Roles come from users.role (admin / manager / viewer) and are enforced
+  SERVER-SIDE (requireRole) — the UI only mirrors the gating.
 
 
 -------------------------------------------------------------------------------
@@ -255,9 +298,13 @@ CORE PRODUCT & FEATURES (A–I backlog, all shipped):
   - UI: glassmorphism + neumorphism look with fonts and animations.
 
 INFRASTRUCTURE / HOSTING:
-  - Monorepo scaffolded (app / server / website).
-  - Backend hosted on Render; PostgreSQL on Neon (Schema ready 34/34).
+  - Monorepo scaffolded (app / server / dashboard / website).
+  - Backend hosted on Render; PostgreSQL on Neon (Schema ready 42/42).
   - Admin /qr display page added.
+  - Role-based web admin console (/dashboard) built + deploy guide added
+    (Feature D — supersedes the DB-only admin path, which remains a fallback).
+  - Daily data-retention prune (app_usage + login_events, 10-day default);
+    device enforcement logs kept in-memory only (not persisted).
 
 KEY BUG FIXES:
   - Sent API key when syncing settings — geofence was never loaded ("No zone
@@ -282,7 +329,11 @@ MARKETING WEBSITE (most recent work):
  HOW TO ACTIVATE / DEPLOY
 ===============================================================================
   - Backend: deploy /server on Render, set env vars (DATABASE_URL, JWT_SECRET,
-    API_KEY, ADMIN_PASSWORD, and optionally LLM_API_KEY + CORS_ORIGINS).
+    API_KEY, ADMIN_PASSWORD, and optionally QR_SECRET, DATA_RETENTION_DAYS,
+    CORS_ORIGINS; LLM_API_KEY only if reviving the Aegis proxy).
+  - Dashboard: set API_BASE in /dashboard/assets/config.js, then deploy the
+    /dashboard folder to any free static host (Netlify/Vercel/Pages/Cloudflare/
+    Render) — separately from the backend. See /dashboard/DEPLOYMENT.md.
   - Website: deploy /website folder to Netlify/Vercel/Pages/Render (static).
     (The AI chat widget was removed from the site; LLM_API_KEY is no longer
     needed for the website.)

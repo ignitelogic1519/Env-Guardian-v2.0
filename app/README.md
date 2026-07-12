@@ -1,10 +1,13 @@
 # Env Guardian v2.0 — Mobile App
 
-The Flutter mobile application that runs on each employee's device.
+The Flutter mobile application (the device agent) that runs on each employee's
+device. Android is the only actively targeted platform; the other platform
+folders are the default Flutter scaffold.
 
-> ✅ **Status:** baseline added. This is the working version 1.0 app, brought in
-> unchanged as our starting point (Step 5a). Next we connect it to the new server
-> (Step 5b), then refactor into a modular structure and add new features (Step 6).
+> ✅ **Status:** shipped. The app is connected to the server, refactored into the
+> modular feature-first layout below, and all A–I rollout features are in
+> (see the root [BACKLOG](../BACKLOG.md)). Production application id:
+> **`com.envguardian.mdm`** (distribution = direct/private APK).
 
 ## What this app does
 
@@ -28,6 +31,7 @@ lib/
 │   ├── platform.dart          # the native platform channel (shared)
 │   ├── background_service.dart# the always-on "ghost" monitor + helpers
 │   └── theme/
+│       ├── glass.dart         # glassmorphism design system (frosted panels)
 │       └── neumorphic.dart    # neumorphic design system (NeuCard, theme…)
 └── features/
     ├── onboarding/            # first-run setup & device registration

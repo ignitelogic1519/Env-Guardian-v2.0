@@ -112,9 +112,9 @@ CORS: already allowed (`*.vercel.app`).
 ## Post-deploy checklist
 
 - [ ] Open the site → the animated login screen loads.
-- [ ] Sign in as `admin` — all 8 pages appear in the left rail.
-- [ ] Sign in as `viewer1` — only Overview / Devices / Metrics appear, and no
-      action buttons render.
+- [ ] Sign in as `admin` — all 9 pages appear in the left rail.
+- [ ] Sign in as `viewer1` — only Home / Overview / Devices / Metrics appear, and
+      no action buttons render.
 - [ ] Metrics page shows the login chart (your own sign-ins already count).
 - [ ] QR Settings renders the code (the QR library loads from jsDelivr; if a
       corporate network blocks CDNs the code value is still shown as text).

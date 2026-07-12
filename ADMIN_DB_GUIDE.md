@@ -1,8 +1,14 @@
 # Env Guardian — Admin Guide (Database-driven)
 
-Until the web dashboard exists, **all admin configuration is done directly in the
-database** (Neon → SQL Editor). The server and app already read these values and
-sync them to every device automatically (devices pick up changes within ~10s).
+> The **[web admin console](dashboard/README.md)** is now the primary way to
+> administer the system. This SQL guide remains a **fallback** for direct
+> database administration (Neon → SQL Editor) — handy for automation, recovery,
+> or when you'd rather not open the console. The console wraps these same
+> operations.
+
+**All admin configuration can be done directly in the database.** The server and
+app already read these values and sync them to every device automatically
+(devices pick up changes within ~10s).
 
 No code/redeploy is needed for any of these — just run the SQL.
 
@@ -159,5 +165,5 @@ DELETE FROM public.agents       WHERE emp_id = 'EMP123';
 
 ---
 
-*When the web dashboard (backlog item D) is eventually built, it will simply wrap
-these same database operations in a UI.*
+*The web dashboard (backlog item D) wraps these same database operations in a UI —
+see [`dashboard/README.md`](dashboard/README.md). Use whichever fits the task.*
