@@ -120,6 +120,13 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
     const auto_lock   = pick(req.body.auto_lock, req.body.autoLock);
     const android_version = pick(req.body.android_version, req.body.androidVersion);
     const sdk_int     = pick(req.body.sdk_int, req.body.sdkInt);
+    let battery_level = pick(req.body.battery_level, req.body.batteryLevel);
+    const battery_charging = pick(req.body.battery_charging, req.body.batteryCharging);
+    // Clamp battery to a sane 0–100 int, or null if not reported.
+    if (battery_level != null) {
+      battery_level = Math.max(0, Math.min(100, Math.round(Number(battery_level))));
+      if (!Number.isFinite(battery_level)) battery_level = null;
+    }
 
     if (!device_id && !emp_id) {
       return res.status(400).json({ success: false, error: "device_id or empId is required" });
@@ -141,6 +148,8 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
          auto_lock         = COALESCE($8, auto_lock),
          android_version   = COALESCE($10, android_version),
          sdk_int           = COALESCE($11, sdk_int),
+         battery_level     = COALESCE($12, battery_level),
+         battery_charging  = COALESCE($13, battery_charging),
          last_pulse        = $9
        WHERE ${matchCol} = $1
        RETURNING id, emp_name, emp_id, device_id, last_pulse, admin_lock, auto_lock, device_token`,
@@ -156,6 +165,8 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
         now,
         android_version ?? null,
         sdk_int ?? null,
+        battery_level ?? null,
+        battery_charging ?? null,
       ]
     );
 
@@ -308,6 +319,7 @@ router.get("/dashboard/agents", requireAuth, async (req, res) => {
          registered_at, current_lat, current_lng, in_zone,
          enforcer_active, last_pulse, installed_apps,
          admin_lock, auto_lock, compliance_status, custom_whitelist,
+         battery_level, battery_charging, log_capture,
          user_id, employee_id
        FROM public.agents
        ORDER BY last_pulse DESC NULLS LAST`

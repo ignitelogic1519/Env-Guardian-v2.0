@@ -24,6 +24,7 @@ const PAGES = [
   { id: "home", title: "Home", roles: ALL, icon: "home" },
   { sec: "Monitor" },
   { id: "overview", title: "Overview",          roles: ALL,                  icon: "grid" },
+  { id: "alerts",   title: "Alerts",            roles: ALL,                  icon: "bell" },
   { id: "devices",  title: "Devices",           roles: ALL,                  icon: "phone" },
   { id: "metrics",  title: "Metrics",           roles: ALL,                  icon: "chart" },
   { sec: "Operate" },
@@ -59,6 +60,12 @@ const PAGE_INFO = {
     points: ["Search by name, employee ID or model across the entire fleet",
              "Per-device panel: compliance matrix, remote lock, whitelist, usage",
              "Filters: online, in-zone, locked, non-compliant"],
+  },
+  alerts: {
+    desc: "Live risk feed — the fleet's tamper and safety signals, most severe first.",
+    points: ["High: a device that went offline while inside the restricted zone (possible uninstall or internet cut-off)",
+             "Medium: Network Guard (VPN) disabled in-zone",
+             "Low: device battery running low — resolve to acknowledge"],
   },
   metrics: {
     desc: "Numbers over time: sign-ins, compliance, and what the fleet is actually using.",
@@ -118,6 +125,8 @@ const IC = {
   sun:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   moon:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   arrow:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
+  bell:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  batt:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>',
 };
 
 // ═══════════ HELPERS ═══════════
@@ -246,6 +255,7 @@ function logout(msg) {
   session = null;
   sessionStorage.removeItem("eg_session");
   clearTimers();
+  if (alertBadgeTimer) { clearInterval(alertBadgeTimer); alertBadgeTimer = null; }
   $("#shell").classList.remove("on");
   $("#loginView").style.display = "flex";
   $("#themeFloat").style.display = "";
@@ -292,6 +302,7 @@ function enterShell() {
   $("#uRole").textContent = u.role;
   $("#uAvatar").textContent = (u.fullName || u.username).split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   buildNav();
+  startAlertBadge();
   const target = location.hash.replace("#/", "") || "home";
   navigate(allowed(target) ? target : "home");
 }
@@ -312,7 +323,8 @@ function buildNav() {
       for (let j = i + 1; j < PAGES.length && !PAGES[j].sec; j++) if (PAGES[j].roles.includes(role())) any = true;
       if (any) html += `<div class="nav-sec">${p.sec}</div>`;
     } else if (p.roles.includes(role())) {
-      html += `<button class="nav-item" data-page="${p.id}"><span style="width:19px;height:19px;display:inline-flex">${IC[p.icon]}</span>${p.title}</button>`;
+      const badge = p.id === "alerts" ? `<span class="nav-badge" id="navAlertBadge" hidden>0</span>` : "";
+      html += `<button class="nav-item" data-page="${p.id}"><span style="width:19px;height:19px;display:inline-flex">${IC[p.icon]}</span>${p.title}${badge}</button>`;
     }
   }
   nav.innerHTML = html;
@@ -321,6 +333,25 @@ function buildNav() {
 
 function clearTimers() { pageTimers.forEach(clearInterval); pageTimers = []; }
 function every(ms, fn) { pageTimers.push(setInterval(fn, ms)); }
+
+// Open-alert count badge on the Alerts nav item. Lives outside pageTimers so it
+// keeps ticking regardless of which page is open.
+let alertBadgeTimer = null;
+async function refreshAlertBadge() {
+  const el = $("#navAlertBadge");
+  if (!el) return;
+  try {
+    const r = await api("/api/dashboard/alerts/count");
+    const n = r.open || 0;
+    if (n > 0) { el.hidden = false; el.textContent = n > 99 ? "99+" : String(n); }
+    else { el.hidden = true; el.textContent = "0"; }
+  } catch { /* leave as-is on transient errors */ }
+}
+function startAlertBadge() {
+  if (alertBadgeTimer) clearInterval(alertBadgeTimer);
+  refreshAlertBadge();
+  alertBadgeTimer = setInterval(refreshAlertBadge, 20000);
+}
 
 function navigate(id) {
   if (!allowed(id)) id = "home";
@@ -357,6 +388,20 @@ const zoneBadge = (a) => a.in_zone
 const lockBadge = (a) => (a.admin_lock || a.auto_lock)
   ? `<span class="badge badge-warn"><span class="dot"></span>${a.admin_lock ? "Admin lock" : "Auto lock"}</span>` : "";
 
+// Battery readout: coloured level + charging bolt. "—" when never reported.
+function battHtml(a) {
+  const lvl = a.battery_level;
+  if (lvl == null || lvl === "") return '<span style="color:var(--faint)">—</span>';
+  const n = parseInt(lvl, 10);
+  const color = n <= 20 ? "var(--bad-text)" : n <= 40 ? "var(--warn-text)" : "var(--good-text)";
+  const bolt = a.battery_charging ? ' <span title="Charging">⚡</span>' : "";
+  return `<span style="color:${color};font-weight:600">${n}%${bolt}</span>`;
+}
+// Small battery pill for cards.
+const battPill = (a) => (a.battery_level == null || a.battery_level === "")
+  ? ""
+  : `<span class="badge ${parseInt(a.battery_level,10) <= 20 ? "badge-bad" : "badge-muted"}"><span class="dot"></span>${parseInt(a.battery_level,10)}%${a.battery_charging ? " ⚡" : ""}</span>`;
+
 function kpiTile({ label, value, sub, icon, tone, suffix }) {
   return `<div class="kpi neo hover-lift rv">
     <div class="k-ic" style="color:${tone || "var(--accent)"}">${IC[icon]}</div>
@@ -376,7 +421,7 @@ function deviceCard(a) {
       <div class="dev-ic" style="color:${a.is_online ? "var(--good-text)" : "var(--faint)"}">${IC.phone}</div>
       <div class="dn"><b>${esc(a.emp_name)}</b><span>${esc(a.emp_id)} · ${esc(a.device_model || "unknown")}</span></div>
     </div>
-    <div class="dev-tags">${onlineBadge(a)}${zoneBadge(a)}${lockBadge(a)}</div>
+    <div class="dev-tags">${onlineBadge(a)}${zoneBadge(a)}${lockBadge(a)}${battPill(a)}</div>
     <div class="meter ${meterClass(a.compliance_score)}"><i style="width:0" data-w="${a.compliance_score}"></i></div>
     <div class="dev-meta"><span>Compliance ${a.compliance_score}%</span><span>Seen ${timeAgo(a.last_seen)}</span></div>
   </div>`;
@@ -501,6 +546,101 @@ RENDER.overview = async (view) => {
   });
 };
 
+// ═══════════ PAGE: ALERTS ═══════════
+const SEV = {
+  high:   { label: "High",   cls: "badge-bad",  tone: "var(--bad-text)" },
+  medium: { label: "Medium", cls: "badge-warn", tone: "var(--warn-text)" },
+  low:    { label: "Low",    cls: "badge-info", tone: "var(--accent)" },
+};
+const ALERT_TYPE = {
+  offline_in_zone: "Offline in restricted zone",
+  low_battery:     "Low battery",
+  network_tamper:  "Network Guard disabled",
+};
+const canResolve = () => ["admin", "manager"].includes(role());
+
+RENDER.alerts = async (view) => {
+  let showAll = false;
+
+  const load = async () => {
+    const body = $("#alBody");
+    if (body) body.innerHTML = `<tr><td colspan="5"><div class="skel" style="height:120px"></div></td></tr>`;
+    let data;
+    try { data = await api(`/api/dashboard/alerts?status=${showAll ? "all" : "open"}&limit=200`); }
+    catch (e) { if (body) body.innerHTML = `<tr><td colspan="5"><div class="empty">${IC.x}<div>${esc(e.message)}</div></div></td></tr>`; return; }
+
+    const alerts = data.alerts || [];
+    const counts = { high: 0, medium: 0, low: 0 };
+    alerts.filter((a) => !a.resolved).forEach((a) => { if (counts[a.severity] != null) counts[a.severity]++; });
+    const setC = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    setC("#alcHigh", counts.high); setC("#alcMed", counts.medium); setC("#alcLow", counts.low); setC("#alcOpen", data.open || 0);
+
+    const alRow = (a) => {
+      const sev = SEV[a.severity] || SEV.low;
+      const typeLabel = ALERT_TYPE[a.type] || a.type;
+      return `<tr ${a.emp_id ? `data-emp="${esc(a.emp_id)}" style="cursor:pointer"` : ""}>
+        <td><span class="badge ${sev.cls}"><span class="dot"></span>${sev.label}</span></td>
+        <td><b>${esc(typeLabel)}</b><br><span class="mono" style="color:var(--faint)">${esc(a.type)}</span></td>
+        <td>${a.emp_name ? `<b>${esc(a.emp_name)}</b><br><span class="mono">${esc(a.emp_id || "")}</span>` : '<span style="color:var(--faint)">—</span>'}</td>
+        <td style="max-width:340px">${esc(a.message || "")}<br><span style="color:var(--faint);font-size:12px">${timeAgo(a.created_at)}${a.resolved ? " · resolved" : ""}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          ${a.resolved ? '<span class="badge badge-muted">Resolved</span>' : (canResolve() ? `<button class="btn btn-ghost btn-sm" data-resolve="${a.id}">Resolve</button>` : "")}
+        </td>
+      </tr>`;
+    };
+
+    if (body) {
+      body.innerHTML = alerts.length
+        ? alerts.map(alRow).join("")
+        : `<tr><td colspan="5"><div class="empty">${IC.check}<div>${showAll ? "No alerts on record." : "No open alerts — the fleet is healthy."}</div></div></td></tr>`;
+      $$("#alBody [data-emp]").forEach((tr) => tr.addEventListener("click", (e) => { if (!e.target.closest("[data-resolve]")) openDeviceModal(tr.dataset.emp); }));
+      $$("#alBody [data-resolve]").forEach((b) => b.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try { await api(`/api/dashboard/alerts/${b.dataset.resolve}/resolve`, { method: "POST" }); toast("Alert resolved"); load(); refreshAlertBadge(); }
+        catch (ex) { toast(ex.message, "err"); }
+      }));
+    }
+  };
+
+  view.innerHTML = `<div class="page">
+    <div class="grid g-kpi">
+      ${kpiTile({ label: "Open alerts", value: 0, icon: "bell", sub: "needs attention" })}
+      ${kpiTile({ label: "High risk", value: 0, icon: "shield", tone: "var(--bad-text)", sub: "offline in zone / tamper" })}
+      ${kpiTile({ label: "Medium", value: 0, icon: "zone", tone: "var(--warn-text)", sub: "network guard off" })}
+      ${kpiTile({ label: "Low", value: 0, icon: "batt", sub: "battery / info" })}
+    </div>
+    <div class="sect-h"><div><h3>Risk alerts</h3>
+      <p>Raised automatically when a device trips a risk condition. Click a row to open the device. Auto-refreshes every 15s.</p></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <label style="display:flex;gap:7px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="alAll" /> Show resolved</label>
+        ${canResolve() ? `<button class="btn btn-ghost btn-sm" id="alResolveAll">Resolve all</button>` : ""}
+      </div>
+    </div>
+    <div class="glass tbl-wrap rv">
+      <table class="tbl"><thead><tr>
+        <th style="width:90px">Severity</th><th>Type</th><th>Device</th><th>Detail</th><th></th>
+      </tr></thead><tbody id="alBody"></tbody></table>
+    </div>
+  </div>`;
+  reveal(view);
+  // Rewrite the KPI ids so countUp targets are addressable.
+  const kpis = $$(".k-value", view);
+  if (kpis[0]) kpis[0].id = "alcOpen";
+  if (kpis[1]) kpis[1].id = "alcHigh";
+  if (kpis[2]) kpis[2].id = "alcMed";
+  if (kpis[3]) kpis[3].id = "alcLow";
+
+  await load();
+  $("#alAll")?.addEventListener("change", (e) => { showAll = e.target.checked; load(); });
+  $("#alResolveAll")?.addEventListener("click", async () => {
+    if (!confirm("Resolve every open alert?")) return;
+    try { await api("/api/dashboard/alerts/resolve-all", { method: "POST" }); toast("All alerts resolved"); load(); refreshAlertBadge(); }
+    catch (ex) { toast(ex.message, "err"); }
+  });
+  every(15000, () => { if (currentPage === "alerts") load(); });
+};
+
 // ═══════════ PAGE: DEVICES ═══════════
 RENDER.devices = async (view) => {
   const { agents } = await api("/api/dashboard/agents");
@@ -598,6 +738,7 @@ async function openDeviceModal(empId) {
       <div class="ig neo-in"><small>Android</small><span>${esc(a.android_version || "?")} (SDK ${a.sdk_int ?? "?"})</span></div>
       <div class="ig neo-in"><small>Last seen</small><span>${timeAgo(a.last_seen)}</span></div>
       <div class="ig neo-in"><small>Enforcer</small><span>${a.enforcer_active ? "Active" : "Inactive"}</span></div>
+      <div class="ig neo-in"><small>Battery</small><span>${battHtml(a)}</span></div>
       <div class="ig neo-in"><small>Registered</small><span>${a.registered_at ? new Date(+a.registered_at).toLocaleDateString() : "—"}</span></div>
     </div>
 
@@ -639,8 +780,15 @@ async function openDeviceModal(empId) {
           : '<span class="hint">No in-zone usage reported today.</span>'}
       </div>
 
-      <div class="m-sec"><h4>Live logs <span class="live-dot"><i></i>Live</span></h4>
-        <p class="hint" style="margin:0 0 8px">Real-time allow / block / network events from the device (updates every few seconds).</p>
+      <div class="m-sec"><h4>Device logs <span class="live-dot" id="mLogLive"><i></i>Live</span></h4>
+        <p class="hint" style="margin:0 0 8px">Allow / block / network events from the device. Live tail evaporates on a poll gap — turn on <b>capture</b> to also persist them to the database (auto-deleted after 1 day) and load the saved history.</p>
+        <div class="log-controls" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          ${can("lock") ? `<label class="switch"><input type="checkbox" id="mCapture"><span class="tr"></span></label>
+          <span style="font-size:12.5px;color:var(--muted)">Capture to database (24h)</span>` : ""}
+          <span style="flex:1"></span>
+          <button class="btn btn-ghost btn-sm" id="mLiveBtn">Live</button>
+          <button class="btn btn-ghost btn-sm" id="mHistBtn">Saved history</button>
+        </div>
         <div class="logfeed" id="mLogs"><span class="hint">Connecting to the device log stream…</span></div>
       </div>
     </div>
@@ -688,7 +836,7 @@ async function openDeviceModal(empId) {
     } catch (ex) { toast(ex.message, "err"); }
   });
 
-  // ── Live logs: poll the device's enforcement log stream while the modal is open ──
+  // ── Device logs: live tail (in-memory) OR saved history (persisted DB) ──
   const logRow = (l) => {
     const t = new Date(l.ts);
     const hh = String(t.getHours()).padStart(2, "0"), mm = String(t.getMinutes()).padStart(2, "0"), ss = String(t.getSeconds()).padStart(2, "0");
@@ -696,22 +844,57 @@ async function openDeviceModal(empId) {
     const cls = l.kind === "vpn" ? "lg-vpn" : (l.blocked ? "lg-block" : "lg-allow");
     return `<div class="lg-line ${cls}"><span class="lg-t">${hh}:${mm}:${ss}</span><span class="lg-tag">[${tag}]</span><span class="lg-pkg">${esc(l.package || "")}</span></div>`;
   };
-  async function refreshLogs() {
+  let logMode = "live"; // "live" | "history"
+
+  const paintLogs = (box, logs, emptyMsg) => {
+    box.innerHTML = logs.length ? logs.map(logRow).join("") : `<span class="hint">${emptyMsg}</span>`;
+  };
+  async function refreshLive() {
     const box = $("#mLogs");
     if (!box) { if (modalTimer) { clearInterval(modalTimer); modalTimer = null; } return; }
+    if (logMode !== "live") return;
     try {
       const r = await api(`/api/device-logs/${encodeURIComponent(empId)}?limit=80`);
-      const logs = r.logs || [];
-      box.innerHTML = logs.length
-        ? logs.map(logRow).join("")
-        : '<span class="hint">No enforcement events yet. Events appear when the device blocks or allows an app inside the zone.</span>';
+      // Keep the capture toggle in sync with the server's actual state.
+      const cap = $("#mCapture"); if (cap && document.activeElement !== cap) cap.checked = !!r.capturing;
+      paintLogs(box, r.logs || [], "No enforcement events yet. Events appear when the device blocks or allows an app inside the zone.");
     } catch (e) {
       box.innerHTML = `<span class="hint">Could not load logs: ${esc(e.message)}</span>`;
     }
   }
+  async function loadHistory() {
+    const box = $("#mLogs");
+    if (!box) return;
+    box.innerHTML = `<span class="hint">Loading saved history from the database…</span>`;
+    try {
+      const r = await api(`/api/device-logs/${encodeURIComponent(empId)}/history?limit=400`);
+      paintLogs(box, r.logs || [], r.capturing
+        ? "Capture is on, but nothing has been saved yet. Events persist as the device reports them."
+        : "No saved logs. Turn on “Capture to database” to start persisting this device's events.");
+    } catch (e) {
+      box.innerHTML = `<span class="hint">Could not load history: ${esc(e.message)}</span>`;
+    }
+  }
+  const setMode = (mode) => {
+    logMode = mode;
+    $("#mLogLive")?.style.setProperty("opacity", mode === "live" ? "1" : "0.35");
+    $("#mLiveBtn")?.classList.toggle("btn-primary", mode === "live");
+    $("#mHistBtn")?.classList.toggle("btn-primary", mode === "history");
+    if (mode === "live") refreshLive(); else loadHistory();
+  };
+  $("#mLiveBtn")?.addEventListener("click", () => setMode("live"));
+  $("#mHistBtn")?.addEventListener("click", () => setMode("history"));
+  $("#mCapture")?.addEventListener("change", async (e) => {
+    try {
+      await api(`/api/device-logs/${encodeURIComponent(empId)}/capture`, { method: "POST", body: JSON.stringify({ enabled: e.target.checked }) });
+      toast(e.target.checked ? "Capturing logs to database (kept 24h)" : "Log capture stopped");
+      if (logMode === "history") loadHistory();
+    } catch (ex) { e.target.checked = !e.target.checked; toast(ex.message, "err"); }
+  });
+
   if (modalTimer) { clearInterval(modalTimer); modalTimer = null; }
-  refreshLogs();
-  modalTimer = setInterval(refreshLogs, 4000);
+  setMode("live");
+  modalTimer = setInterval(refreshLive, 4000);
 }
 
 // ═══════════ PAGE: METRICS ═══════════

@@ -14,6 +14,7 @@ import '../../core/theme/glass.dart';
 import '../armory/armory_tab.dart';
 import '../map/map_tab.dart';
 import '../logs/log_tab.dart';
+import '../policy/policy_tab.dart';
 
 /// The main post-setup screen: tabbed status / armory / logs / map, plus the
 /// QR authentication flow, the live zone timer, and the frozen-device screens.
@@ -34,7 +35,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
     platformBlocker.setMethodCallHandler((c) async {
       if (c.method == "showBlockAlert" && mounted) {
-        setState(() => _tabIndex = 3);
+        setState(() => _tabIndex = 3); // Logs tab
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Application Blocked by Zero Trust.", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating));
       }
     });
@@ -208,10 +209,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
         transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
         child: KeyedSubtree(
           key: ValueKey(_tabIndex),
-          child: [_buildStatusTab(), const ArmoryTab(), const LogTab(), MapTab(currentLat: _lat, currentLng: _lng, polygonPoints: _poly)][_tabIndex],
+          child: [_buildStatusTab(), const PolicyTab(), const ArmoryTab(), const LogTab(), MapTab(currentLat: _lat, currentLng: _lng, polygonPoints: _poly)][_tabIndex],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(currentIndex: _tabIndex, onTap: (i) => setState(() => _tabIndex = i), type: BottomNavigationBarType.fixed, backgroundColor: Colors.black.withOpacity(0.30), elevation: 0, selectedItemColor: Colors.blueAccent, unselectedItemColor: Colors.white38, items: const [BottomNavigationBarItem(icon: Icon(Icons.radar), label: "Status"), BottomNavigationBarItem(icon: Icon(Icons.security), label: "Armory"), BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Logs"), BottomNavigationBarItem(icon: Icon(Icons.map), label: "Map")]),
+      bottomNavigationBar: BottomNavigationBar(currentIndex: _tabIndex, onTap: (i) => setState(() => _tabIndex = i), type: BottomNavigationBarType.fixed, backgroundColor: Colors.black.withOpacity(0.30), elevation: 0, selectedItemColor: Colors.blueAccent, unselectedItemColor: Colors.white38, items: const [BottomNavigationBarItem(icon: Icon(Icons.radar), label: "Status"), BottomNavigationBarItem(icon: Icon(Icons.policy), label: "Policy"), BottomNavigationBarItem(icon: Icon(Icons.security), label: "Armory"), BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Logs"), BottomNavigationBarItem(icon: Icon(Icons.map), label: "Map")]),
     );
   }
 

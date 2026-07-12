@@ -196,7 +196,7 @@ class CloudSync {
     }
   }
 
-  static Future<void> sendPulse(String empId, double lat, double lng, bool inZone, bool enforcerActive, List<String> installedApps, bool autoLock, Map<String, bool> compliance) async {
+  static Future<void> sendPulse(String empId, double lat, double lng, bool inZone, bool enforcerActive, List<String> installedApps, bool autoLock, Map<String, bool> compliance, {int? batteryLevel, bool? batteryCharging}) async {
     try {
       final p = await SharedPreferences.getInstance();
       await http.post(
@@ -206,7 +206,8 @@ class CloudSync {
           "empId": empId, "lat": lat, "lng": lng, "inZone": inZone, "enforcerActive": enforcerActive,
           "timestamp": DateTime.now().millisecondsSinceEpoch, "installedApps": installedApps,
           "autoLock": autoLock, "compliance": compliance,
-          "androidVersion": p.getString('android_version'), "sdkInt": p.getInt('sdk_int')
+          "androidVersion": p.getString('android_version'), "sdkInt": p.getInt('sdk_int'),
+          "batteryLevel": batteryLevel, "batteryCharging": batteryCharging,
         }),
       ).timeout(const Duration(seconds: 5));
     } catch (e) {

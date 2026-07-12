@@ -4,8 +4,11 @@ import android.accessibilityservice.AccessibilityService
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.BatteryManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.os.Handler
 import android.os.Looper
 import java.text.SimpleDateFormat
@@ -25,10 +28,20 @@ class AppBlockerService : AccessibilityService() {
         // Last whitelist signature we handed the VPN, so we only re-establish the
         // tunnel when the effective allow-list actually changes.
         private var lastVpnWlSig: String? = null
+        // Throttle for PiP-intrusion handling so we don't spam startActivity.
+        private var lastPipActionAt: Long = 0L
     }
 
     private var pulseHandler: Handler? = null
     private var pulseRunnable: Runnable? = null
+    // This app's own display label, resolved once — used by the anti-tamper shield
+    // so it recognises our own app-details / uninstall screens even if the label
+    // is localised or changes.
+    private val myLabel: String by lazy {
+        try {
+            packageManager.getApplicationLabel(applicationInfo).toString()
+        } catch (e: Exception) { "Env Guardian" }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -67,6 +80,16 @@ class AppBlockerService : AccessibilityService() {
                     //    method channel) so it works even when the UI is closed — this
                     //    is what turns the VPN OFF the moment the device leaves the zone.
                     reconcileVpn(prefs)
+
+                    // 5. Battery telemetry — written to prefs for the Dart heartbeat to
+                    //    report to the dashboard (works with the UI closed).
+                    writeBatteryStatus(prefs)
+
+                    // 6. Picture-in-Picture strike. A downloaded video can keep playing
+                    //    in a floating mini-window even after we send a blocked app home
+                    //    (the VPN only kills its internet). Detect a non-whitelisted app
+                    //    still holding a window while in-zone and shut it down.
+                    handlePipIntrusion(prefs)
 
                     pulseHandler?.postDelayed(this, 5000)
                 } catch (e: Exception) {
@@ -284,6 +307,88 @@ class AppBlockerService : AccessibilityService() {
         }
     }
 
+    // Reads the current battery level + charging state and stores them where the
+    // Dart heartbeat can pick them up (Dart int ⇄ Java Long; Dart bool ⇄ boolean).
+    // Runs from the always-alive pulse so telemetry flows even with the UI closed.
+    private fun writeBatteryStatus(prefs: android.content.SharedPreferences) {
+        try {
+            val bm = applicationContext.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            var level = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+            val status = applicationContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            if (level !in 0..100 && status != null) {
+                val l = status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = status.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                if (l >= 0 && scale > 0) level = Math.round(l * 100f / scale)
+            }
+            val st = status?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL
+            if (level in 0..100) {
+                prefs.edit()
+                    .putLong("flutter.battery_level", level.toLong())
+                    .putBoolean("flutter.battery_charging", charging)
+                    .commit()
+            }
+        } catch (e: Exception) { /* telemetry must never break enforcement */ }
+    }
+
+    // Picture-in-Picture / floating-window strike. When inside the zone, a
+    // non-whitelisted app that still holds an on-screen window (e.g. YouTube's
+    // mini-player playing a DOWNLOADED video — no internet needed, so the VPN
+    // can't stop it) is shut down: we pull it full-screen to break PiP, then send
+    // BACK to stop playback. The normal window-state block then sends it home.
+    private fun handlePipIntrusion(prefs: android.content.SharedPreferences) {
+        try {
+            if (!prefs.getBoolean("flutter.in_restricted_zone", false)) return
+            val now = System.currentTimeMillis()
+            if (now < prefs.getLong("flutter.enforcement_grace_until", 0L)) return
+            if (now - lastPipActionAt < 2500) return // throttle
+
+            val whitelist = prefs.getStringSet("native_whitelist", setOf()) ?: setOf()
+            val wins = windows ?: return
+            // Find the currently focused/active window's package — the true
+            // foreground. A non-whitelisted app that owns a DIFFERENT window while
+            // something else is focused is a floating mini-player (PiP).
+            var activePkg: String? = null
+            for (w in wins) {
+                if (w.isActive || w.isFocused) { activePkg = w.root?.packageName?.toString(); break }
+            }
+            for (w in wins) {
+                if (w.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val pkg = w.root?.packageName?.toString() ?: continue
+                if (pkg == applicationContext.packageName) continue
+                if (isCoreSystemApp(pkg)) continue
+                if (whitelist.contains(pkg)) continue
+                if (pkg == activePkg) continue // genuine foreground → handled by the window-state block
+                // A non-whitelisted app is holding a background window in-zone → PiP.
+                lastPipActionAt = now
+                val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                val msg = "PiP ⛔ blocked mini-window — $pkg"
+                ironLedger.add(0, mapOf("package" to msg, "blocked" to true, "time" to time))
+                if (ironLedger.size > 200) ironLedger.removeLast()
+                Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, true, time) }
+                persistLog(pkg, true, time, "block")
+                try {
+                    val li = packageManager.getLaunchIntentForPackage(pkg)
+                    if (li != null) {
+                        li.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        startActivity(li) // exits PiP into full-screen
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            performGlobalAction(GLOBAL_ACTION_BACK) // stop playback
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                performGlobalAction(GLOBAL_ACTION_HOME)
+                            }, 350)
+                        }, 400)
+                    } else {
+                        performGlobalAction(GLOBAL_ACTION_HOME)
+                    }
+                } catch (e: Exception) {
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                }
+                return
+            }
+        } catch (e: Exception) { /* never break the pulse */ }
+    }
+
     // Writes a VPN lifecycle event to logcat AND to the in-app Logs tab (iron
     // ledger), so VPN behaviour can be debugged on-device without a computer.
     private fun vpnLog(msg: String) {
@@ -346,23 +451,25 @@ class AppBlockerService : AccessibilityService() {
         // those shells and match the "Uninstall" action, not just "Force stop".
         if (isTamperShell(packageName)) {
             val rootNode = rootInActiveWindow
-            if (rootNode != null) {
-                // Only act when THIS app is the target on screen (its label is shown
-                // on the app-details page and in the uninstall dialog). Uninstalling
-                // OTHER apps never shows "Env Guardian", so it's unaffected.
-                val mentionsUs = !rootNode.findAccessibilityNodeInfosByText("Env Guardian").isNullOrEmpty()
-                if (mentionsUs) {
-                    val tamperActions = listOf(
-                        "Uninstall", "Uninstall app", "Force stop", "Force-stop",
-                        "Stop", "Disable", "Active in background"
-                    )
-                    val tampering = tamperActions.any {
-                        !rootNode.findAccessibilityNodeInfosByText(it).isNullOrEmpty()
-                    }
-                    if (tampering) {
-                        performGlobalAction(GLOBAL_ACTION_HOME)
-                        return
-                    }
+            if (rootNode != null && mentionsUs(rootNode)) {
+                // Only act when THIS app is the target on screen (its label / package
+                // is shown on the app-details page and in the uninstall dialog).
+                // Uninstalling OTHER apps never mentions us, so they're unaffected.
+                if (isInstallerShell(packageName)) {
+                    // A package-installer screen that mentions our app can only be an
+                    // install/uninstall flow. On ColorOS/Realme the confirmation button
+                    // is often a generic "OK" (not "Uninstall"), which is exactly why
+                    // the old action-text match let the uninstall through. Treat ANY
+                    // such installer screen as a tamper attempt.
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    logTamper("uninstall attempt ($packageName)")
+                    return
+                }
+                // Settings / security shells: match the destructive actions.
+                if (hasTamperAction(rootNode)) {
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    logTamper("force-stop/disable attempt ($packageName)")
+                    return
                 }
             }
         }
@@ -413,16 +520,61 @@ class AppBlockerService : AccessibilityService() {
     // the ColorOS/Oppo security-center + settings packages.
     private fun isTamperShell(pkg: String): Boolean {
         if (pkg == "com.android.settings" || pkg == "com.android.systemui") return true
-        if (pkg.contains("packageinstaller")) return true
+        if (isInstallerShell(pkg)) return true
         val oemShells = setOf(
             "com.coloros.safecenter",
             "com.oplus.safecenter",
             "com.coloros.settings",
             "com.oplus.settings",
             "com.oppo.settings",
-            "com.miui.securitycenter"
+            "com.miui.securitycenter",
+            "com.samsung.android.packageinstaller",
+            "com.samsung.android.app.settings",
+            "com.vivo.settings",
+            "com.iqoo.secure"
         )
         return oemShells.contains(pkg)
+    }
+
+    // Package-installer shells (where an uninstall confirmation actually appears).
+    // The "packageinstaller" substring covers stock + Google + MIUI + Samsung +
+    // ColorOS/Realme variants; a launcher long-press → Uninstall lands here too.
+    private fun isInstallerShell(pkg: String): Boolean {
+        return pkg.contains("packageinstaller") || pkg == "com.google.android.packageinstaller" ||
+               pkg == "com.miui.packageinstaller" || pkg.endsWith(".packageinstaller")
+    }
+
+    // True if the on-screen content mentions THIS app — by its (possibly localised)
+    // display label or by its package name — so the shield only fires on our own
+    // app-details / uninstall screen, never on someone else's.
+    private fun mentionsUs(root: AccessibilityNodeInfo): Boolean {
+        return try {
+            !root.findAccessibilityNodeInfosByText(myLabel).isNullOrEmpty() ||
+            !root.findAccessibilityNodeInfosByText(applicationContext.packageName).isNullOrEmpty()
+        } catch (e: Exception) { false }
+    }
+
+    // Detects a destructive action (uninstall / force-stop / disable) by button text.
+    private fun hasTamperAction(root: AccessibilityNodeInfo): Boolean {
+        val tamperActions = listOf(
+            "Uninstall", "Uninstall app", "Uninstall updates", "Force stop", "Force-stop",
+            "Force close", "Stop", "Disable", "Turn off", "Active in background"
+        )
+        return tamperActions.any {
+            try { !root.findAccessibilityNodeInfosByText(it).isNullOrEmpty() } catch (e: Exception) { false }
+        }
+    }
+
+    // Records a tamper strike to the on-device log ledger + the dashboard feed.
+    private fun logTamper(what: String) {
+        try {
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            val msg = "TAMPER ⛔ blocked $what"
+            ironLedger.add(0, mapOf("package" to msg, "blocked" to true, "time" to time))
+            if (ironLedger.size > 200) ironLedger.removeLast()
+            Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, true, time) }
+            persistLog(msg, true, time, "block")
+        } catch (e: Exception) { /* logging must never break enforcement */ }
     }
 
     private fun isCoreSystemApp(pkg: String): Boolean {

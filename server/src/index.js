@@ -7,6 +7,7 @@ const morgan = require("morgan");
 
 const initSchema     = require("./db/initSchema");
 const { startRetention } = require("./db/retention");
+const { startAlertSweep } = require("./db/alerts");
 const authRoutes      = require("./routes/auth");
 const agentRoutes     = require("./routes/agents");
 const settingsRoutes  = require("./routes/settings");
@@ -30,6 +31,10 @@ try { aegisRoutes = require("./routes/aegis"); } catch(e) { console.log("aegis r
 // Dashboard user management (admin only) — optional.
 let usersRoutes;
 try { usersRoutes = require("./routes/users"); } catch(e) { console.log("users route not found, skipping"); }
+
+// Fleet risk alerts (offline-in-zone, low battery, tamper) — optional.
+let alertsRoutes;
+try { alertsRoutes = require("./routes/alerts"); } catch(e) { console.log("alerts route not found, skipping"); }
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -100,6 +105,7 @@ if (policiesRoutes) app.use("/api/policies", policiesRoutes);
 if (deviceLogsRoutes) app.use("/api/device-logs", deviceLogsRoutes);
 if (aegisRoutes) app.use("/api/aegis", aegisRoutes);
 if (usersRoutes) app.use("/api/users", usersRoutes);
+if (alertsRoutes) app.use("/api/dashboard/alerts", alertsRoutes);
 
 // ─── HEALTH ──────────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
@@ -119,7 +125,7 @@ app.use((err, req, res, next) => {
 
 // Ensure the schema exists (creates tables + seeds defaults on a fresh DB),
 // then start listening. Init failures are logged but don't block startup.
-initSchema().finally(() => { startRetention(); app.listen(PORT, () => {
+initSchema().finally(() => { startRetention(); startAlertSweep(); app.listen(PORT, () => {
   console.log("");
   console.log("╔═══════════════════════════════════════╗");
   console.log("║     🛡  ENV GUARDIAN SERVER  🛡         ║");

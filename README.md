@@ -144,6 +144,41 @@ env-guardian-v2.0/
 - The SQL cookbook in **[`ADMIN_DB_GUIDE.md`](ADMIN_DB_GUIDE.md)** still works as
   a fallback for direct database administration.
 
+### 15. Fleet risk alerts (dashboard)
+- The server continuously sweeps the fleet and raises **risk alerts** surfaced on
+  a dedicated **Alerts** page (with a live unread badge in the sidebar):
+  - **HIGH — offline inside the restricted zone.** A device that was in-zone and
+    stops reporting (app uninstalled, or **internet cut off** to dodge the policy)
+    is the top tamper signal.
+  - **MEDIUM — Network Guard (VPN) disabled** while in-zone.
+  - **LOW — battery low.** The enforcer dies when the phone dies.
+- Alerts **deduplicate** while open and **auto-resolve** when the condition clears;
+  admins/managers can also resolve them manually.
+
+### 16. Battery telemetry + low-battery warning
+- The native enforcer reads battery level/charging every pulse; it's reported on
+  the heartbeat, shown as a **battery pill** on device cards + in the device panel,
+  and drives the low-battery alert. On-device, the user also gets a **local
+  notification** when the battery drops below 15% (and isn't charging).
+
+### 17. On-demand persisted device logs
+- Device logs still stream live (in-memory). Opening a device now also exposes a
+  **"Capture to database"** toggle: while on, the device's events are **persisted**
+  so you can load a **saved history** that survives poll gaps / restarts. The
+  capture is temporary — rows are **auto-deleted after 1 day**.
+
+### 18. Policy tab (mobile app)
+- A new **Policy** tab in the app shows every policy the device is enforcing,
+  including the **time left today** for each timed whitelist app (daily budget
+  minus in-zone usage), counted only while inside the zone.
+
+### 19. Stronger tamper + Picture-in-Picture defence
+- The anti-tamper shield now matches our **app label + package** and treats **any
+  package-installer screen** referencing this app as an uninstall attempt — closing
+  the ColorOS/Realme hole where the confirmation button reads a generic "OK".
+- A **PiP strike** shuts down a non-whitelisted **floating mini-player** (e.g. a
+  YouTube **downloaded** video that keeps playing despite the VPN) while in-zone.
+
 ---
 
 ## Feature rollout status (A–I)

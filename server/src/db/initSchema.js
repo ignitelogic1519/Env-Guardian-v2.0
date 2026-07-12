@@ -99,10 +99,37 @@ const STATEMENTS = [
      role      varchar(20),
      ts        bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
    )`,
-  // NOTE: device enforcement logs are intentionally NOT persisted. They stream
-  // live from the device into a short in-memory buffer on the server (see
-  // routes/deviceLogs.js) and the dashboard polls them back — nothing is written
-  // to the database, so there is no device_logs table here by design.
+  // Fleet risk alerts surfaced on the dashboard. Raised by the server when a
+  // device trips a risk condition (offline while inside the restricted zone,
+  // internet cut off in-zone, low battery, VPN/enforcer tamper…). Deduplicated
+  // while an alert of the same (emp_id, type) is still unresolved.
+  `CREATE TABLE IF NOT EXISTS public.alerts (
+     id          SERIAL PRIMARY KEY,
+     emp_id      varchar(50),
+     emp_name    varchar(100),
+     type        varchar(40)  NOT NULL,
+     severity    varchar(12)  NOT NULL DEFAULT 'medium',
+     message     text,
+     meta        jsonb,
+     resolved    boolean NOT NULL DEFAULT false,
+     created_at  bigint  NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint,
+     updated_at  bigint  NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint,
+     resolved_at bigint
+   )`,
+  // Device enforcement logs stream live into an in-memory ring buffer (see
+  // routes/deviceLogs.js). They are ALSO persisted here — but only temporarily —
+  // when an admin flips on live-log capture for a device from the dashboard
+  // (agents.log_capture). Retention prunes anything older than 1 day so the table
+  // stays small; it is a short-lived on-demand capture, not a permanent log store.
+  `CREATE TABLE IF NOT EXISTS public.device_logs (
+     id          SERIAL PRIMARY KEY,
+     emp_id      varchar(50)  NOT NULL,
+     package     varchar(300),
+     blocked     boolean,
+     kind        varchar(12),
+     ts          bigint NOT NULL,
+     created_at  bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
+   )`,
 
   // ── Column backfills for older databases (schema drift) ───────────────────
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS user_id integer`,
@@ -123,6 +150,14 @@ const STATEMENTS = [
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS feature_flags jsonb DEFAULT '{}'::jsonb`,
   // Per-device auth token (feature F) + QR rotation mode (feature G).
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS device_token text`,
+  // Battery telemetry (reported on every heartbeat) — powers the dashboard
+  // battery pill + the low-battery alert.
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS battery_level integer`,
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS battery_charging boolean`,
+  // On-demand live-log capture flag. When true, the device's pushed enforcement
+  // logs are ALSO persisted to public.device_logs so the dashboard can show a
+  // history (retained ≤ 1 day). Toggled per device from the dashboard.
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS log_capture boolean DEFAULT false`,
   `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS qr_mode varchar(10) DEFAULT 'static'`,
   // users table backfills (in case an older/partial users table exists)
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS org_name varchar(100) DEFAULT 'Env Guardian'`,
@@ -149,6 +184,10 @@ const STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS app_policies_emp_pkg_key ON public.app_policies (emp_id, package)`,
   `CREATE INDEX IF NOT EXISTS idx_app_policies_emp ON public.app_policies (emp_id)`,
   `CREATE INDEX IF NOT EXISTS idx_login_events_ts ON public.login_events (ts DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_alerts_open ON public.alerts (resolved, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_alerts_emp_type ON public.alerts (emp_id, type, resolved)`,
+  `CREATE INDEX IF NOT EXISTS idx_device_logs_emp_ts ON public.device_logs (emp_id, ts DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_device_logs_created ON public.device_logs (created_at)`,
 ];
 
 // Default restricted zone (Zone 1 — Surat, Gujarat).

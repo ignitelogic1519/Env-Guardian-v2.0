@@ -37,6 +37,7 @@ void onStart(ServiceInstance service) async {
 
   bool lastAlertState = false;
   bool lastInside = false; // tracks zone-entry transitions for the auto-foreground prompt
+  bool lowBatteryNotified = false; // debounce the low-battery notification
   String lastNotifState = "";
 
   if (service is AndroidServiceInstance) service.setAsForegroundService();
@@ -168,9 +169,34 @@ void onStart(ServiceInstance service) async {
       "vpn_revoked": (prefs.getBool('vpn_enabled') ?? false) && (prefs.getBool('vpn_revoked') ?? false)
     };
 
+    // Battery telemetry — written to prefs by the native enforcer pulse
+    // (AppBlockerService.writeBatteryStatus). Reported to the dashboard, and used
+    // for the low-battery notification below.
+    int? batteryLevel = prefs.getInt('battery_level');
+    bool batteryCharging = prefs.getBool('battery_charging') ?? false;
+
     try {
-      await CloudSync.sendPulse(empId, cLat, cLng, insideGeofence, enforcerAlive, inventory, autoLock, compMatrix).timeout(const Duration(seconds: 5));
+      await CloudSync.sendPulse(empId, cLat, cLng, insideGeofence, enforcerAlive, inventory, autoLock, compMatrix, batteryLevel: batteryLevel, batteryCharging: batteryCharging).timeout(const Duration(seconds: 5));
     } catch (_) {}
+
+    // Low-battery warning to the user (once per low episode). The enforcer dies
+    // when the phone dies, so nudge the user to charge before that happens.
+    if (batteryLevel != null && batteryLevel <= 15 && !batteryCharging) {
+      if (!lowBatteryNotified) {
+        try {
+          await flutterLocalNotificationsPlugin.show(
+            998,
+            "🔋 Battery low ($batteryLevel%)",
+            "Env Guardian stops protecting this device once it powers off. Please charge your phone.",
+            const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, color: Colors.orange, icon: '@mipmap/ic_launcher')),
+          );
+        } catch (_) {}
+        lowBatteryNotified = true;
+      }
+    } else if (batteryCharging || (batteryLevel != null && batteryLevel >= 25)) {
+      // Recovered / on charge → reset so the next low episode notifies again.
+      if (lowBatteryNotified) { try { await flutterLocalNotificationsPlugin.cancel(998); } catch (_) {} lowBatteryNotified = false; }
+    }
 
     // Push any buffered native enforcement logs to the server so the dashboard's
     // live feed updates even while the UI is closed.
