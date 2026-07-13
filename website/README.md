@@ -59,5 +59,9 @@ Shared assets live in `assets/` (`style.css`, `main.js`, `shots/` screenshots).
 - **Marquee items:** edit the `.m-item` spans in `index.html` (the list is duplicated
   once for the seamless loop — keep both copies in sync).
 
-> Easy next steps: a logo, testimonials, a pricing page, and swapping the
-> mailto form for a hosted form service.
+> The shield logo in the navbar is the product's brand mark — the same artwork
+> now used as the mobile app's launcher icon and the admin console's login logo
+> (vector source: `app/assets/logo/logo.svg`).
+>
+> Easy next steps: testimonials, a pricing page, and swapping the mailto form
+> for a hosted form service.

@@ -145,6 +145,28 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | EDGE-02 | 🔴 | Server (Render) cold-started/asleep | First request slow (~50s) then works |
 | EDGE-03 | 🔴 | Toggle airplane mode repeatedly | App stays stable; resyncs |
 
+## 13. Dynamic launcher icon + status widget (Android)
+
+Icon switches are **debounced by design**: a new state must hold ~2 min, and
+switches are ≥10 min apart. The widget has no debounce (~5 s). States: brand
+(not enrolled) · pin (on-site) · green check (safe) · amber ! (attention) ·
+red X (alert) · grey pause (paused).
+
+| ID | Type | Steps | Expected |
+|----|------|-------|----------|
+| ICON-01 | 🟢 | Fresh install, don't enroll | Launcher shows the brand shield (blue/teal + check) |
+| ICON-02 | 🟢 | Seal device outside the zone, fully compliant; wait out the debounce | Icon = **green shield + check** |
+| ICON-03 | 🟢 | Enter the zone (compliant); wait out the debounce | Icon = **shield + location pin** |
+| ICON-04 | 🔴 | Turn GPS off | "⚠️ Guardian needs attention" notification fires **once**; widget flips within ~5s; icon = **amber !** after debounce. Icon must NOT be red |
+| ICON-05 | 🔴 | Admin lock the device (or disable Accessibility in-zone) | "🛑 Action required" notification; icon = **red X** after debounce |
+| ICON-06 | 🟢 | Fix the issue from ICON-04/05 | Notification 1002 cleared; icon returns to green/pin after debounce |
+| ICON-07 | 🟢 | Enrolled but monitoring paused (unsealed) | Icon = **grey pause** |
+| ICON-08 | 🔴 | Walk along the geofence boundary for ~10 min | Widget may flip live; the **icon switches at most once** (hysteresis works) |
+| ICON-09 | 🔴 | After any icon switch | App still launches from the icon; appears once in the drawer; adaptive icon renders correctly in the launcher mask |
+| WID-01 | 🟢 | Long-press home screen → widgets → add **Env Guardian** | Widget shows state icon + status text + "Updated HH:MM" |
+| WID-02 | 🟢 | Change any state (e.g. leave the zone) | Widget text/icon update within ~5s (next enforcer pulse) |
+| WID-03 | 🟢 | Tap the widget | The app opens |
+
 ---
 
 ## Server smoke tests (curl)

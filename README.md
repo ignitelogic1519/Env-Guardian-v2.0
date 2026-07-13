@@ -172,7 +172,27 @@ env-guardian-v2.0/
   including the **time left today** for each timed whitelist app (daily budget
   minus in-zone usage), counted only while inside the zone.
 
-### 19. Stronger tamper + Picture-in-Picture defence
+### 19. Brand identity + dynamic launcher icon (Android)
+- **One brand mark everywhere**: the gradient shield + check used by the website
+  and admin console is now the app's icon on every platform (Android legacy +
+  adaptive, iOS, macOS, Windows, web PWA), rendered on a **glassmorphism tile**
+  (blurred colour glows behind a frosted, stroked card with a diagonal sheen).
+  All variants regenerate from one script: `app/assets/logo/generate_icons.py`.
+- **The Android launcher icon reflects the live guard state** (Duolingo-style,
+  via activity-aliases): brand shield (not enrolled) · **pin** (compliant
+  on-site) · **green check** (safe zone) · **amber !** (degraded — permissions/
+  GPS/sync) · **red X** (device-level tamper only) · **grey pause** (monitoring
+  paused / off-duty — a visible BYOD trust signal).
+- **UX guardrails**: red is reserved for device-level enforcement problems (never
+  a publicly visible "non-compliant" brand over a fixable hiccup); switches are
+  debounced (2 min stable + max ~6/hour) so geofence-boundary flapping never
+  reaches the home screen; urgent transitions also fire a real notification.
+- **Home-screen status widget** (`GuardianStatusWidget`) shows the live state —
+  icon, plain-language status and last update — refreshed every enforcer pulse
+  with no debounce. iOS keeps a static icon (the OS alerts the user on every
+  programmatic icon change).
+
+### 20. Stronger tamper + Picture-in-Picture defence
 - The anti-tamper shield now matches our **app label + package** and treats **any
   package-installer screen** referencing this app as an uninstall attempt — closing
   the ColorOS/Realme hole where the confirmation button reads a generic "OK".

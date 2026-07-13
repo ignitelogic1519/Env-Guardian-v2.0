@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
+// Smoke test: the app boots into the right first screen for its seal state.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// (Replaces the default Flutter "counter" scaffold test, which referenced a
+// MyApp class this project never had.)
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:env_guardian/main.dart';
+import 'package:env_guardian/app.dart';
+import 'package:env_guardian/features/command_center/command_center_screen.dart';
+import 'package:env_guardian/features/onboarding/admin_setup_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('unsealed device boots into the setup flow', (tester) async {
+    await tester.pumpWidget(const EnvGuardianApp(isSealed: false));
+    expect(find.byType(AdminSetupScreen), findsOneWidget);
+    expect(find.byType(CommandCenterScreen), findsNothing);
   });
+
+  // The sealed path (CommandCenterScreen) is not pumped here: its initState
+  // immediately starts cloud-sync loops whose network/platform-channel
+  // timeouts leave timers pending past teardown, which the test binding
+  // rejects. Covering it needs those services injected — see TEST_CASES.md
+  // for the manual on-device checks that exercise the sealed flow.
 }

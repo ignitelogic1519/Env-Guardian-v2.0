@@ -62,6 +62,17 @@ between sessions. (Things already shipped are in git history / the READMEs.)
 ### UI
 - **Neumorphism + glassmorphism** look: animated aurora gradient background,
   frosted-glass panels, modern fonts (Inter + Outfit), entrance/transition animations
+- **Unified brand icon**: the website/dashboard shield mark is now the app icon on
+  every platform (Android legacy + adaptive, iOS, macOS, Windows, web PWA +
+  branded manifest), on a glassmorphism tile; all sizes regenerate from
+  `app/assets/logo/generate_icons.py`
+- **Dynamic launcher icon (Android)** — the icon reflects the guard state via
+  activity-aliases (`DynamicIconManager`): on-site pin / safe-zone green check /
+  amber "!" (degraded) / red X (device-level tamper only) / grey pause (off-duty).
+  Debounced (2 min stable, max ~6 switches/hour); attention/alert transitions also
+  fire a notification (id 1002). Plus a **home-screen status widget**
+  (`GuardianStatusWidget`) that updates live with no debounce. iOS stays static
+  (the OS alerts on every icon change)
 
 ### Docs
 - `README.md` (detailed feature reference), `ADMIN_DB_GUIDE.md` (DB-driven admin

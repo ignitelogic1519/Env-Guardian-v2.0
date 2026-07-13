@@ -128,6 +128,22 @@ propagates to devices within ~10s.
 - [ ] Set `qr_mode='totp'`; show `/api/qr-current` on a live display.
 - [ ] Scanning the current code authenticates; an old screenshot (older window) fails.
 
+## 14. User story: dynamic launcher icon + status widget (Android)
+**Situation:** the home-screen icon should mirror the guard state without flapping
+or publicly shaming; the widget is the live view. Icon switches are debounced —
+expect a change only after the state has held ~2 min (and ≥10 min since the last
+switch); the widget updates within ~5 s.
+- [ ] Fresh install (not enrolled) → brand shield icon (blue/teal + check).
+- [ ] Enrolled + sealed, **outside** the zone, all compliant → icon becomes the **green shield + check** (after the debounce window).
+- [ ] Walk **into** the zone (compliant) → icon becomes the **brand shield + location pin**.
+- [ ] Turn **GPS off** (or revoke a permission) → widget flips to "Attention needed" within ~5 s; a **"Guardian needs attention"** notification fires once; icon turns **amber !** after the debounce.
+- [ ] Restore the setting → notification clears; icon returns to green/pin after the debounce.
+- [ ] **Device-level tamper** (admin lock, or disable Accessibility while in-zone) → **red X** icon path + "Action required" notification. Verify a merely revoked permission does **not** go red (amber only).
+- [ ] Pace near the geofence boundary for a few minutes → the **widget** may flip, but the **icon** does not flap (max ~6 switches/hour).
+- [ ] Add the **Env Guardian widget** to the home screen → shows state icon, status text and "Updated HH:MM"; tapping it opens the app.
+- [ ] Unenroll/pause monitoring (enrolled but unsealed) → **grey pause** icon; widget says "Off-duty — this device is not tracked".
+- [ ] Launcher sanity after a switch: the app remains launchable, appears once (not duplicated) in the app drawer, and the icon renders correctly in the launcher's mask shape (adaptive icon).
+
 ---
 
 ## Integrity sign-off

@@ -48,7 +48,8 @@ lib/
 | `features/command_center/`     | Main tabbed screen + QR auth + zone timer + the app-bar **Security Features** panel (manages Usage Access, Notification Access, OEM Auto-start; shows the always-on Network Guard status + re-grant) |
 | `features/onboarding/`         | First-run setup: identity + **all 10 mandatory grants (steps 0–9)** — runtime permissions, Accessibility, one-time Network Guard (VPN) consent, and the now-required Usage Access, Notification Access & OEM Auto-start (acknowledgement). Device can't be sealed until all pass |
 | `features/*`                   | One folder per feature — safe to assign to different developers |
-| `android/`                     | Android project + native `AppBlockerService` (the enforcer) + usage-stats |
+| `android/`                     | Android project + native `AppBlockerService` (the enforcer), `DynamicIconManager` (state-driven launcher icon), `GuardianStatusWidget` (home-screen widget) + usage-stats |
+| `assets/logo/`                 | Brand source of truth: `logo.svg` + `generate_icons.py` (renders every platform icon incl. the five Android state variants) |
 
 ## Building the app (for later)
 
@@ -58,6 +59,21 @@ Requires the Flutter SDK. From this `app/` folder:
 flutter pub get      # download dependencies
 flutter run          # run on a connected device/emulator
 flutter build apk    # build an installable APK
+```
+
+Before shipping, validate with:
+
+```bash
+flutter analyze      # static analysis (0 errors expected)
+flutter test         # widget smoke test (test/widget_test.dart)
+```
+
+To change the logo/app icons, edit `assets/logo/logo.svg` (or the state
+definitions in `generate_icons.py`) and regenerate everything:
+
+```bash
+pip install pillow cairosvg
+python3 assets/logo/generate_icons.py
 ```
 
 ## Dynamic launcher icon + status widget (Android)

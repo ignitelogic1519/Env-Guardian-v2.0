@@ -6,6 +6,10 @@ hosted on any free static host **separately from the backend**. It signs in
 against the backend's `POST /api/auth/login` (JWT) and drives every admin
 operation through the existing REST API.
 
+The shield mark on the login screen is the product's brand logo — the same
+artwork used by the marketing site's navbar and (since the branding pass) the
+mobile app's launcher icon (vector source: `app/assets/logo/logo.svg`).
+
 **Design:** two themes on one Intune-style shell (left navigation rail, top
 bar, frosted content cards), switched with the **sun/moon toggle** in the top
 bar (persisted per browser):

@@ -1,6 +1,6 @@
 ===============================================================================
  ENV GUARDIAN v2.0  —  PROJECT SUMMARY
- Generated: 2026-07-12
+ Generated: 2026-07-12 · Updated: 2026-07-13 (brand icons + dynamic launcher icon)
 ===============================================================================
 
 WHAT THIS PROJECT IS
@@ -56,7 +56,12 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        in_restricted_zone; the Network Guard VPN
                                        itself is reconciled NATIVELY (see
                                        AppBlockerService) so it stops on zone exit
-                                       even when the UI is closed.
+                                       even when the UI is closed. Also classifies
+                                       the dynamic launcher-icon state each cycle
+                                       (eg_icon_state: onsite/safe/attention/
+                                       alert/paused — red reserved for device-
+                                       level tamper) and fires a notification on
+                                       attention/alert transitions.
       platform.dart                    Method-channel bridge to native Kotlin.
       theme/glass.dart                 Glassmorphism UI helpers.
       theme/neumorphic.dart            Neumorphism UI helpers.
@@ -111,11 +116,31 @@ code plus native Kotlin services for the actual OS-level enforcement.
                                        that the heartbeat now reports.
     GuardianNotifListener.kt           Notification-listener — pre-scan clean-
                                        state gate (Feature A).
+    DynamicIconManager.kt              State-driven launcher icon: enables exactly
+                                       one launcher activity-alias per guard state
+                                       (reads the state Dart persists to prefs),
+                                       with hysteresis (2 min stable + max ~6
+                                       switches/hour) so the icon never flaps.
+                                       Ticked by the AppBlockerService pulse and
+                                       MainActivity.onResume.
+    GuardianStatusWidget.kt            Home-screen status widget — the live,
+                                       undebounced view of the guard state (icon +
+                                       text + last update), refreshed each pulse.
     res/xml/accessibility_service_config.xml  Accessibility declaration.
-    AndroidManifest.xml                Permissions & service registrations.
+    AndroidManifest.xml                Permissions & service registrations, the
+                                       six launcher activity-aliases (dynamic
+                                       icon) and the widget receiver.
 
-  Other folders (ios/, web/, linux/, macos/, windows/, test/) are the default
-  Flutter scaffold — Android is the only actively targeted platform.
+  app/assets/logo/                     Brand source of truth: logo.svg (the same
+                                       shield mark the website + dashboard use)
+                                       and generate_icons.py, which renders every
+                                       platform icon incl. the five Android state
+                                       variants (glassmorphism tile).
+
+  Other folders (ios/, web/, linux/, macos/, windows/, test/) remain the Flutter
+  scaffold — Android is the only actively targeted platform — but all launcher/app
+  icons are now the Env Guardian brand mark, and web/manifest.json + index.html
+  carry the product name, description and dark-navy theme colour.
 
   App id (Feature H): com.envguardian.mdm (production).
 

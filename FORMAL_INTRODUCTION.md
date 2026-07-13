@@ -4,7 +4,7 @@
 **Prepared for:** Government of India — Information Technology review
 **Product name:** Env Guardian (Version 2.0)
 **Product category:** Mobile Device Management (MDM) / Zero-Trust workplace security solution for Bring-Your-Own-Device (BYOD) environments
-**Date:** 12 July 2026
+**Date:** 13 July 2026
 
 ---
 
@@ -99,7 +99,7 @@ Env Guardian follows a **data-minimisation** approach consistent with the princi
 - **Data not collected:** no personal content (messages, media, files, contacts), no browsing content, no keystrokes, no audio/video capture, and no network traffic content.
 - **Purpose limitation:** all data is used solely for premises security policy enforcement and compliance reporting to the enrolling organisation.
 - **Retention:** non-essential history (application-usage records and console login events) is automatically purged after a short retention window (10 days by default). Live device event logs are held only in short-lived server memory unless an administrator explicitly enables temporary capture, in which case captured records are automatically deleted after one day.
-- **Transparency:** the device shows a persistent notification whenever monitoring is active, and an in-app **Policy tab** lets the user see every policy currently applied to their device.
+- **Transparency:** the device shows a persistent notification whenever monitoring is active, and an in-app **Policy tab** lets the user see every policy currently applied to their device. On Android, the application's **launcher icon itself reflects the current monitoring state** (active on-site, safe zone, attention required, or paused), and an optional home-screen widget shows the same status in plain language — so the user can always see at a glance whether, and how, the agent is operating. Notably, when monitoring is paused (for example outside working hours), the icon visibly indicates it, reinforcing that the personal device is not being tracked off-duty.
 - **Anti-theft safeguard:** a device is permanently bound to the identity that first enrolled it; a lost or stolen device cannot be re-registered under another identity without administrator intervention.
 
 ---
