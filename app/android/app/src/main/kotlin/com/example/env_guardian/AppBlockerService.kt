@@ -91,6 +91,12 @@ class AppBlockerService : AccessibilityService() {
                     //    still holding a window while in-zone and shut it down.
                     handlePipIntrusion(prefs)
 
+                    // 7. Dynamic launcher icon + status widget. Reconciled here (not
+                    //    via a Flutter channel) for the same reason as the VPN: it must
+                    //    keep working while the UI is closed. The manager applies its
+                    //    own hysteresis, so calling it every pulse is safe.
+                    DynamicIconManager.tick(applicationContext)
+
                     pulseHandler?.postDelayed(this, 5000)
                 } catch (e: Exception) {
                     e.printStackTrace()

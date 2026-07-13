@@ -169,6 +169,54 @@ void onStart(ServiceInstance service) async {
       "vpn_revoked": (prefs.getBool('vpn_enabled') ?? false) && (prefs.getBool('vpn_revoked') ?? false)
     };
 
+    // ── Dynamic launcher icon state ──────────────────────────────────────────
+    // Consumed natively by DynamicIconManager (enforcer pulse / app resume) —
+    // this isolate can't reach the activity's method channel, so prefs are the
+    // hand-off. RED ("alert") is reserved for device-level tamper/enforcement
+    // problems only (device frozen, VPN killed, accessibility enforcer dead
+    // in-zone); everything the user can fix by flipping a setting is amber
+    // ("attention"), so the red icon never publicly brands someone
+    // non-compliant over a fixable hiccup.
+    final bool vpnRevoked = compMatrix['vpn_revoked'] == true;
+    String iconState;
+    if (isLocked || vpnRevoked || (!enforcerAlive && insideGeofence)) {
+      iconState = 'alert';
+    } else if (!isCompliant) {
+      iconState = 'attention';
+    } else if (insideGeofence) {
+      iconState = 'onsite';
+    } else {
+      iconState = 'safe';
+    }
+    await prefs.setString('eg_icon_state', iconState);
+    await prefs.setInt('eg_icon_state_ts', DateTime.now().millisecondsSinceEpoch);
+
+    // The icon itself is an ambient, debounced signal — states that need the
+    // user to act also get a real notification, once per transition.
+    final String prevIconState = prefs.getString('eg_icon_state_prev') ?? '';
+    if (iconState != prevIconState) {
+      await prefs.setString('eg_icon_state_prev', iconState);
+      try {
+        if (iconState == 'alert') {
+          await flutterLocalNotificationsPlugin.show(
+            1002,
+            "🛑 Action required",
+            "Env Guardian enforcement is blocked on this device. Open the app to resolve.",
+            const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, color: Colors.red, icon: '@mipmap/ic_launcher')),
+          );
+        } else if (iconState == 'attention') {
+          await flutterLocalNotificationsPlugin.show(
+            1002,
+            "⚠️ Guardian needs attention",
+            "Monitoring is degraded — check permissions, GPS and sync in the app.",
+            const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, color: Colors.orange, icon: '@mipmap/ic_launcher')),
+          );
+        } else {
+          await flutterLocalNotificationsPlugin.cancel(1002);
+        }
+      } catch (_) {}
+    }
+
     // Battery telemetry — written to prefs by the native enforcer pulse
     // (AppBlockerService.writeBatteryStatus). Reported to the dashboard, and used
     // for the low-battery notification below.

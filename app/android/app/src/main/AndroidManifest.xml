@@ -49,11 +49,100 @@
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme" />
+        </activity>
+
+        <!-- ── Dynamic launcher icon (state-driven, Duolingo-style) ──────────
+             The LAUNCHER entry point lives on these aliases instead of
+             MainActivity so DynamicIconManager can swap the visible icon by
+             enabling exactly one alias at a time (new one first, then the
+             others are disabled, with DONT_KILL_APP). Exactly one alias must
+             have android:enabled="true" here; the manager's alias list must
+             match these names. -->
+        <activity-alias
+            android:name=".LauncherDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Env Guardian"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherOnsite"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_onsite"
+            android:label="Env Guardian"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherSafe"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_safe"
+            android:label="Env Guardian"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherAttention"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_attention"
+            android:label="Env Guardian"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherAlert"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_alert"
+            android:label="Env Guardian"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherPaused"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_paused"
+            android:label="Env Guardian"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Home-screen status widget: shows the live guard state instantly
+             (the launcher icon above is debounced; the widget is not). -->
+        <receiver
+            android:name=".GuardianStatusWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/guardian_widget_info" />
+        </receiver>
 
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"

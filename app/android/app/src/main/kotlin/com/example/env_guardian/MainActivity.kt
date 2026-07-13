@@ -138,6 +138,14 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Fallback reconciliation for the dynamic icon + widget: the enforcer
+        // pulse is the primary driver, but if accessibility is disabled that
+        // pulse is dead — opening the app still brings the icon up to date.
+        DynamicIconManager.tick(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra("was_blocked", false)) {

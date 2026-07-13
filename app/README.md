@@ -59,3 +59,39 @@ flutter pub get      # download dependencies
 flutter run          # run on a connected device/emulator
 flutter build apk    # build an installable APK
 ```
+
+## Dynamic launcher icon + status widget (Android)
+
+The launcher icon reflects the device's guard state (like Duolingo's streak
+icons): the LAUNCHER entry lives on six `activity-alias`es in the manifest and
+`DynamicIconManager` (native, driven by the enforcer pulse and app resume)
+enables exactly one of them.
+
+| State | Icon | Meaning |
+|-------|------|---------|
+| `default` | brand shield + check | not enrolled yet |
+| `onsite` | brand shield + location pin | compliant, inside the restricted zone |
+| `safe` | green shield + check | compliant, outside the restricted zone |
+| `attention` | amber shield + "!" | degraded: permissions/GPS/sync — user-fixable |
+| `alert` | red shield + X | device-level tamper only (frozen, VPN killed, enforcer dead in-zone) |
+| `paused` | grey shield + pause | enrolled but monitoring not active |
+
+Deliberate UX rules baked in:
+
+- **Red is reserved for device-level enforcement problems.** Anything the user
+  can fix by flipping a setting shows amber — the home-screen icon is visible
+  to bystanders and must not publicly brand someone non-compliant over a
+  fixable hiccup (classification lives in `background_service.dart`).
+- **Hysteresis**: the icon only switches after the state has held for 2 min,
+  and at most every 10 min (`DynamicIconManager`), so working near the
+  geofence boundary doesn't make it flap.
+- **The icon is ambient, not the alert.** Transitions into `attention`/`alert`
+  also fire a notification (id 1002) from the Dart heartbeat.
+- **The home-screen widget (`GuardianStatusWidget`) is the live view** — it
+  updates on every 5 s enforcer pulse with no hysteresis and shows state text
+  plus last-update time.
+
+State names are shared across `generate_icons.py` (which renders all variants),
+the manifest aliases, `DynamicIconManager.kt` and `background_service.dart`.
+iOS keeps a static icon: iOS shows a user-facing system alert on every icon
+change, which rules out silent state-driven switching.
