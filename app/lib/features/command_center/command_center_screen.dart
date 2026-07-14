@@ -24,6 +24,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool _insideGeofence = false, _isPhysicallyVerified = false, _enforcerAlive = false, _isInitializing = true, _autoLock = false, _adminLock = false;
   bool _nOk = true, _fOk = true, _bOk = true, _oOk = true, _cOk = true, _gpsEnabled = true, _usageOk = false;
   bool _notifAccessOk = false; List<String> _runningOffenders = []; // feature A: pre-scan gate
+  List<String> _pipBlock = []; // mini-windows (PiP) the enforcer couldn't auto-close — must be closed manually before scanning
   bool _autostartAck = false; // OEM auto-start can't be read back — track that the user visited it
   bool _vpnEnabled = false, _vpnRevoked = false, _vpnLive = false; // feature B: guard policy + tamper flag + live tunnel state
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
@@ -163,7 +164,6 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     // Usage Access, Notification Access and the OEM Auto-start acknowledgement are
     // now MANDATORY parts of compliance (alongside the runtime permissions + enforcer).
     bool comp = n && f && g && b && o && c && a && ua && na && asAck;
-    final bool inZoneNow = p.getBool('in_restricted_zone') ?? false;
 
     if (aL || adL || !comp) merged.addAll(["com.android.settings", "com.google.android.permissioncontroller", "com.android.permissioncontroller", "com.miui.securitycenter", "com.coloros.safecenter"]);
 
@@ -174,7 +174,16 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
     // Foreground fast path: also trim here + report usage to the server. (The native
     // reconciler is the source of truth; this just gives instant feedback in-app.)
-    if (inZoneNow) { try { await enforceTimeLimits(p, _empId, merged); } catch (_) {} }
+    try { await enforceTimeLimits(p, _empId, merged); } catch (_) {}
+
+    // Android-16 PiP fallback: mini-windows the native enforcer gave up on
+    // (after 2 auto-close attempts). Non-empty → the QR scanner is gated until
+    // the user closes them manually (the native scan clears the flag itself).
+    List<String> pipBlock = [];
+    try {
+      final s = p.getString('pip_manual_block') ?? '';
+      if (s.isNotEmpty) pipBlock = (json.decode(s) as List).map((e) => e.toString()).toList();
+    } catch (_) {}
 
     await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
 
@@ -189,7 +198,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
     // Fire-and-forget so a slow network never stalls this 5s UI sync.
     if (_empId.isNotEmpty) { CloudSync.flushPendingLogs(_empId).catchError((_) {}); }
 
-    if (mounted) setState(() { _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _notifAccessOk = na; _autostartAck = asAck; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _vpnLive = vLive; _verifiedSince = p.getInt('verified_since') ?? 0; });
+    if (mounted) setState(() { _pipBlock = pipBlock; _poly = poly; _insideGeofence = p.getBool('in_restricted_zone') ?? false; _isPhysicallyVerified = p.getBool('is_physically_verified') ?? false; _lat = p.getDouble('current_lat') ?? 0; _lng = p.getDouble('current_lng') ?? 0; _enforcerAlive = a; _autoLock = aL; _adminLock = adL; _nOk = n; _fOk = f; _gpsEnabled = g; _bOk = b; _oOk = o; _cOk = c; _usageOk = ua; _notifAccessOk = na; _autostartAck = asAck; _vpnEnabled = p.getBool('vpn_enabled') ?? false; _vpnRevoked = p.getBool('vpn_revoked') ?? false; _vpnLive = vLive; _verifiedSince = p.getInt('verified_since') ?? 0; });
     _refreshRunning();
   }
 
@@ -258,6 +267,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
         ]))),
       ]));
     }
+
+    // Android-16 PiP gate: a floating mini-window couldn't be auto-closed —
+    // scanning stays blocked until the user closes it manually.
+    if (_pipBlock.isNotEmpty) return _buildPipGate();
 
     // Feature A: gate the scanner until non-whitelisted background apps are closed.
     if (_notifAccessOk && _runningOffenders.isNotEmpty) return _buildCloseAppsGate();
@@ -330,6 +343,21 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
       }),
     );
   }
+
+  // Android-16 PiP fallback: shown instead of the scanner while a floating
+  // mini-window that the enforcer couldn't auto-close (2 attempts) is still on
+  // screen. The native pulse clears the flag the moment the window is gone.
+  Widget _buildPipGate() => Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: FadeInUp(child: GlassCard(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.picture_in_picture_alt, size: 70, color: Colors.redAccent),
+        const SizedBox(height: 12),
+        const Text("CLOSE THE MINI WINDOW", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+        const SizedBox(height: 6),
+        const Text("A floating mini-player (picture-in-picture) is still open and could not be closed automatically. Close it manually — tap the mini window and use its ✕ — then re-check. QR scanning stays locked until it's gone.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(height: 16),
+        ..._pipBlock.take(10).map((pkg) => ListTile(dense: true, leading: const Icon(Icons.branding_watermark, color: Colors.orangeAccent, size: 20), title: Text(pkg, style: const TextStyle(color: Colors.white, fontSize: 13)))),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 48)), icon: const Icon(Icons.refresh), label: const Text("I'VE CLOSED IT — RE-CHECK"), onPressed: _sync),
+      ])))));
 
   // Feature A: shown instead of the scanner while non-whitelisted apps are running.
   Widget _buildCloseAppsGate() => Center(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: FadeInUp(child: GlassCard(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [

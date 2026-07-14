@@ -6,12 +6,14 @@ import '../../core/theme/glass.dart';
 import '../../core/theme/neumorphic.dart';
 import '../../core/background_service.dart';
 
-/// Policy tab — shows every policy the device is currently enforcing, pulled
+/// Policy tab — shows the policies the device is currently enforcing, pulled
 /// straight from the device's own synced state (no network call):
-///   • the effective whitelist (global ∪ per-device custom),
-///   • per-app daily time budgets, and — the headline — the TIME LEFT today for
-///     each timed whitelist app (budget minus in-zone usage), counted only while
-///     inside the restricted zone.
+///   • the per-device CUSTOM whitelist and the admin's timed apps — the global
+///     whitelist is deliberately NOT shown (listing it would advertise which
+///     apps slip past the blocker on every device — a probing vulnerability),
+///   • per-app time budgets, and — the headline — the TIME LEFT this shift for
+///     each timed app (budget minus in-zone usage), counted only while inside
+///     the restricted zone.
 class PolicyTab extends StatefulWidget {
   const PolicyTab({super.key});
   @override
@@ -22,7 +24,6 @@ class _PolicyTabState extends State<PolicyTab> {
   Timer? _t;
   bool _timeLimitsOn = false;
   bool _inZone = false;
-  List<String> _globalWl = [];
   List<String> _customWl = [];
   List<Map<String, dynamic>> _policies = [];
   Map<String, int> _usage = {};
@@ -47,7 +48,6 @@ class _PolicyTabState extends State<PolicyTab> {
     setState(() {
       _timeLimitsOn = flags['app_time_limits'] == true;
       _inZone = p.getBool('in_restricted_zone') ?? false;
-      _globalWl = p.getStringList('global_whitelist') ?? [];
       _customWl = p.getStringList('custom_whitelist') ?? [];
       _policies = pol.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       _usage = readInZoneUsage(p);
@@ -63,19 +63,20 @@ class _PolicyTabState extends State<PolicyTab> {
 
   @override
   Widget build(BuildContext context) {
-    final Set<String> whitelist = {..._globalWl, ..._customWl};
     // Map policies by package for quick lookup.
     final Map<String, Map<String, dynamic>> polByPkg = {
       for (final pol in _policies) (pol['package'] ?? '').toString(): pol
     };
-    // Timed apps: whitelist apps that have a policy with a daily limit > 0.
-    final timedApps = whitelist.where((pkg) {
-      final pol = polByPkg[pkg];
-      if (pol == null) return false;
-      final int limit = (pol['daily_limit_ms'] as num?)?.toInt() ?? 0;
+    // Timed apps: any app the admin gave a time budget (limit > 0).
+    final timedApps = polByPkg.keys.where((pkg) {
+      if (pkg.isEmpty) return false;
+      final int limit = (polByPkg[pkg]?['daily_limit_ms'] as num?)?.toInt() ?? 0;
       return limit > 0;
     }).toList()
       ..sort();
+    // Shown list = the user's custom whitelist + the timed apps. The global
+    // whitelist stays hidden on-device (still enforced by the blocker).
+    final Set<String> shownApps = {..._customWl, ...timedApps};
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -103,11 +104,11 @@ class _PolicyTabState extends State<PolicyTab> {
 
         // ── Time left for timed whitelist apps ──────────────────────────────
         const Padding(padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-          child: Text("TIME LEFT TODAY (IN-ZONE)", style: TextStyle(color: NeuColors.textMuted, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold))),
+          child: Text("TIME LEFT THIS SHIFT (IN-ZONE)", style: TextStyle(color: NeuColors.textMuted, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold))),
         if (!_timeLimitsOn)
-          _hintCard("No time-limit key is active for this device. Whitelisted apps have no timer applied.")
+          _hintCard("No time-limit key is active for this device. Allowed apps have no timer applied.")
         else if (timedApps.isEmpty)
-          _hintCard("No timed apps configured. The admin hasn't set a daily budget on any whitelisted app yet.")
+          _hintCard("No timed apps configured. The admin hasn't set a time budget on any app yet.")
         else
           ...timedApps.map((pkg) {
             final pol = polByPkg[pkg]!;
@@ -140,7 +141,7 @@ class _PolicyTabState extends State<PolicyTab> {
                   const SizedBox(height: 6),
                   Text(
                     exhausted
-                        ? (enabled ? "Daily budget spent — blocked until midnight" : "Disabled by admin — always blocked in zone")
+                        ? (enabled ? "Shift budget spent — blocked until the next shift window" : "Disabled by admin — always blocked in zone")
                         : "${fmtDuration(used)} used of ${fmtDuration(limit)} budget",
                     style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
@@ -150,15 +151,15 @@ class _PolicyTabState extends State<PolicyTab> {
           }),
 
         const SizedBox(height: 14),
-        // ── All whitelisted apps ────────────────────────────────────────────
+        // ── User's custom whitelist + timed apps (global list stays hidden) ──
         const Padding(padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-          child: Text("ALLOWED APPS IN ZONE", style: TextStyle(color: NeuColors.textMuted, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold))),
-        if (whitelist.isEmpty)
-          _hintCard("No apps are whitelisted — every app is blocked inside the zone.")
+          child: Text("YOUR ALLOWED & TIMED APPS", style: TextStyle(color: NeuColors.textMuted, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold))),
+        if (shownApps.isEmpty)
+          _hintCard("No custom-whitelisted or timed apps for this device yet.")
         else
           GlassCard(
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-            child: Column(children: whitelist.toList().map((pkg) {
+            child: Column(children: (shownApps.toList()..sort()).map((pkg) {
               final pol = polByPkg[pkg];
               final int limit = (pol?['daily_limit_ms'] as num?)?.toInt() ?? 0;
               final bool enabled = pol?['enabled'] ?? true;
@@ -167,7 +168,7 @@ class _PolicyTabState extends State<PolicyTab> {
               if (!enabled) { sub = "Disabled by policy"; subColor = Colors.redAccent; }
               else if (_timeLimitsOn && limit > 0) {
                 final int left = (limit - (_usage[pkg] ?? 0)).clamp(0, limit);
-                sub = left <= 0 ? "Time up — blocked" : "${fmtDuration(left)} left today";
+                sub = left <= 0 ? "Time up — blocked" : "${fmtDuration(left)} left this shift";
                 subColor = left <= 0 ? Colors.redAccent : Colors.greenAccent;
               } else { sub = "No timer"; subColor = Colors.white38; }
               return ListTile(

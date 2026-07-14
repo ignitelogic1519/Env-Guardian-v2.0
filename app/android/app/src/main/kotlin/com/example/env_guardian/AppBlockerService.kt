@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.BatteryManager
+import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.os.Handler
@@ -30,10 +32,18 @@ class AppBlockerService : AccessibilityService() {
         private var lastVpnWlSig: String? = null
         // Throttle for PiP-intrusion handling so we don't spam startActivity.
         private var lastPipActionAt: Long = 0L
+        // Per-package auto-close attempts for PiP mini-windows. After
+        // MAX_PIP_ATTEMPTS the loop stops and the user is asked to close the
+        // window manually (Android 16 keeps some PiP windows alive through
+        // launch-intent + BACK, which previously made this loop forever).
+        private val pipAttempts = HashMap<String, Int>()
+        private const val MAX_PIP_ATTEMPTS = 2
     }
 
     private var pulseHandler: Handler? = null
     private var pulseRunnable: Runnable? = null
+    // Timestamp of the previous pulse — bounds the per-pulse call-time credit.
+    private var lastPulseAt: Long = 0L
     // This app's own display label, resolved once — used by the anti-tamper shield
     // so it recognises our own app-details / uninstall screens even if the label
     // is localised or changes.
@@ -184,27 +194,68 @@ class AppBlockerService : AccessibilityService() {
         return out
     }
 
+    // The start (epoch ms) of the current shift window. Per-app time budgets
+    // accrue within one window and reset only when the window rolls over —
+    // NEVER when the device merely leaves and re-enters the zone. Windows
+    // repeat every shift_hours (default 12h), anchored at shift_start local
+    // time (default 08:00); both are set by the admin on the dashboard and
+    // synced to prefs by CloudSync.syncSettings. Must stay in lock-step with
+    // currentWindowStart() in Dart (background_service.dart).
+    private fun shiftWindowStart(prefs: android.content.SharedPreferences, now: Long): Long {
+        var startMin = 8 * 60
+        try {
+            val s = prefs.getString("flutter.shift_start", null)
+            if (s != null && s.contains(":")) {
+                val p = s.split(":")
+                val h = p[0].trim().toInt(); val m = p[1].trim().toInt()
+                if (h in 0..23 && m in 0..59) startMin = h * 60 + m
+            }
+        } catch (e: Exception) { /* keep default */ }
+        var hours = try { prefs.getLong("flutter.shift_hours", 12L) } catch (e: Exception) { 12L }
+        if (hours < 1L || hours > 24L) hours = 12L
+        val period = hours * 3600000L
+        val cal = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, startMin / 60); set(Calendar.MINUTE, startMin % 60)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        var anchor = cal.timeInMillis
+        if (anchor > now) anchor -= 86400000L
+        return anchor + ((now - anchor) / period) * period
+    }
+
     // Accumulates per-app foreground time that accrued WHILE THE DEVICE IS INSIDE THE
-    // RESTRICTED ZONE (today only), rather than whole-day usage. This is what per-app
-    // time limits are measured against and what gets reported to the server.
+    // RESTRICTED ZONE within the CURRENT SHIFT WINDOW, rather than whole-day usage.
+    // This is what per-app time limits are measured against and what gets reported
+    // to the server. Leaving and re-entering the zone does NOT reset it — only the
+    // shift-window rollover does.
     //
     // How it works: UsageStatsManager only gives cumulative day totals, so each pulse
     // we diff the current totals against the previous snapshot and add the positive
     // delta to the in-zone accumulator ONLY when the device is currently in the zone.
-    // Everything is keyed by the local date and resets at midnight. Persisted to
+    // The accumulator is keyed by the shift-window start; the snapshot stays keyed by
+    // the local date (UsageStats totals are per-day). Persisted to
     // 'flutter.eg_inzone_usage' (read by Dart for reporting) and 'eg_usage_snapshot'
     // (native-only bookkeeping).
+    //
+    // ALSO credits ongoing VoIP calls: a WhatsApp/Telegram call with the screen off
+    // never accrues UsageStats foreground time, so while the device is in a
+    // communication audio mode we attribute the pulse interval to every app holding
+    // an ongoing call notification (unless it's already the visible foreground app,
+    // which UsageStats covers).
     private fun computeInZoneUsage(prefs: android.content.SharedPreferences): Map<String, Long> {
+        val now = System.currentTimeMillis()
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val windowKey = shiftWindowStart(prefs, now).toString()
         val current = getTodayUsageNative()
         val inzone = HashMap<String, Long>()
 
-        // Load the persisted in-zone accumulator (reset if it's from another day).
+        // Load the persisted in-zone accumulator (reset if it's from another window).
         try {
             val s = prefs.getString("flutter.eg_inzone_usage", null)
             if (s != null) {
                 val o = JSONObject(s)
-                if (o.optString("date", today) == today) {
+                if (o.optString("window", "") == windowKey) {
                     val u = o.optJSONObject("usage") ?: JSONObject()
                     val it = u.keys()
                     while (it.hasNext()) { val k = it.next(); inzone[k] = u.optLong(k, 0L) }
@@ -240,11 +291,35 @@ class AppBlockerService : AccessibilityService() {
             }
         }
 
+        // Screen-off call tracking: audio in a call mode + an ongoing CALL
+        // notification identifies which app owns the call.
+        if (inZone) {
+            val callDelta = if (lastPulseAt in 1 until now) (now - lastPulseAt).coerceAtMost(15000L) else 5000L
+            try {
+                val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val inCall = am != null &&
+                    (am.mode == AudioManager.MODE_IN_COMMUNICATION || am.mode == AudioManager.MODE_IN_CALL)
+                if (inCall) {
+                    val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    val interactive = pm?.isInteractive ?: true
+                    val fgPkg = if (interactive) activeWindowPackage() else null
+                    for (pkg in GuardianNotifListener.callSnapshot()) {
+                        if (pkg == applicationContext.packageName) continue
+                        // Visible foreground with the screen on is already counted
+                        // by the UsageStats delta above — don't double-count.
+                        if (interactive && pkg == fgPkg) continue
+                        inzone[pkg] = (inzone[pkg] ?: 0L) + callDelta
+                    }
+                }
+            } catch (e: Exception) { /* call credit must never break the pulse */ }
+        }
+        lastPulseAt = now
+
         // Persist the accumulator (Dart-readable) and refresh the snapshot.
         try {
             val io = JSONObject(); val iu = JSONObject()
             for ((k, v) in inzone) iu.put(k, v)
-            io.put("date", today); io.put("usage", iu)
+            io.put("window", windowKey); io.put("date", today); io.put("usage", iu)
 
             val so = JSONObject(); val su = JSONObject()
             for ((k, v) in current) su.put(k, v)
@@ -257,6 +332,17 @@ class AppBlockerService : AccessibilityService() {
         } catch (e: Exception) { e.printStackTrace() }
 
         return inzone
+    }
+
+    // Package owning the currently active/focused window, or null.
+    private fun activeWindowPackage(): String? {
+        return try {
+            val wins = windows ?: return null
+            for (w in wins) {
+                if (w.isActive || w.isFocused) return w.root?.packageName?.toString()
+            }
+            null
+        } catch (e: Exception) { null }
     }
 
     // Keeps the Network Guard VPN in sync with the desired state, entirely on the
@@ -342,22 +428,29 @@ class AppBlockerService : AccessibilityService() {
     // mini-player playing a DOWNLOADED video — no internet needed, so the VPN
     // can't stop it) is shut down: we pull it full-screen to break PiP, then send
     // BACK to stop playback. The normal window-state block then sends it home.
+    //
+    // Android 16 keeps some PiP windows alive through this sequence, which used
+    // to loop forever. Each offending package now gets at most MAX_PIP_ATTEMPTS
+    // auto-close tries; after that the loop stops and the package list is
+    // published to 'flutter.pip_manual_block' — the Flutter side alerts the user
+    // to close the mini-window manually and blocks QR scanning until this scan
+    // no longer sees the window (the flag then clears itself).
     private fun handlePipIntrusion(prefs: android.content.SharedPreferences) {
         try {
-            if (!prefs.getBoolean("flutter.in_restricted_zone", false)) return
+            if (!prefs.getBoolean("flutter.in_restricted_zone", false)) {
+                clearPipManualBlock(prefs) // left the zone → nothing to gate on
+                return
+            }
             val now = System.currentTimeMillis()
             if (now < prefs.getLong("flutter.enforcement_grace_until", 0L)) return
-            if (now - lastPipActionAt < 2500) return // throttle
 
             val whitelist = prefs.getStringSet("native_whitelist", setOf()) ?: setOf()
             val wins = windows ?: return
             // Find the currently focused/active window's package — the true
             // foreground. A non-whitelisted app that owns a DIFFERENT window while
             // something else is focused is a floating mini-player (PiP).
-            var activePkg: String? = null
-            for (w in wins) {
-                if (w.isActive || w.isFocused) { activePkg = w.root?.packageName?.toString(); break }
-            }
+            val activePkg = activeWindowPackage()
+            val offenders = ArrayList<String>()
             for (w in wins) {
                 if (w.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
                 val pkg = w.root?.packageName?.toString() ?: continue
@@ -365,34 +458,71 @@ class AppBlockerService : AccessibilityService() {
                 if (isCoreSystemApp(pkg)) continue
                 if (whitelist.contains(pkg)) continue
                 if (pkg == activePkg) continue // genuine foreground → handled by the window-state block
-                // A non-whitelisted app is holding a background window in-zone → PiP.
-                lastPipActionAt = now
-                val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                val msg = "PiP ⛔ blocked mini-window — $pkg"
-                ironLedger.add(0, mapOf("package" to msg, "blocked" to true, "time" to time))
-                if (ironLedger.size > 200) ironLedger.removeLast()
-                Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, true, time) }
-                persistLog(pkg, true, time, "block")
-                try {
-                    val li = packageManager.getLaunchIntentForPackage(pkg)
-                    if (li != null) {
-                        li.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        startActivity(li) // exits PiP into full-screen
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            performGlobalAction(GLOBAL_ACTION_BACK) // stop playback
-                            Handler(Looper.getMainLooper()).postDelayed({
-                                performGlobalAction(GLOBAL_ACTION_HOME)
-                            }, 350)
-                        }, 400)
-                    } else {
-                        performGlobalAction(GLOBAL_ACTION_HOME)
-                    }
-                } catch (e: Exception) {
-                    performGlobalAction(GLOBAL_ACTION_HOME)
-                }
+                offenders.add(pkg)
+            }
+
+            if (offenders.isEmpty()) {
+                // All mini-windows are gone — reset the strike counters and lift
+                // the manual-close gate so the user can scan the QR again.
+                pipAttempts.clear()
+                clearPipManualBlock(prefs)
                 return
             }
+
+            // Packages that exhausted their auto-close attempts need manual action.
+            val manual = offenders.filter { (pipAttempts[it] ?: 0) >= MAX_PIP_ATTEMPTS }
+            if (manual.isNotEmpty()) {
+                val arr = JSONArray(); manual.forEach { arr.put(it) }
+                val cur = prefs.getString("flutter.pip_manual_block", "") ?: ""
+                if (cur != arr.toString()) {
+                    prefs.edit().putString("flutter.pip_manual_block", arr.toString()).commit()
+                    val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                    val msg = "PiP ⚠ close mini-window manually — ${manual.joinToString(", ")}"
+                    ironLedger.add(0, mapOf("package" to msg, "blocked" to true, "time" to time))
+                    if (ironLedger.size > 200) ironLedger.removeLast()
+                    Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, true, time) }
+                    persistLog(msg, true, time, "block")
+                }
+            }
+
+            // Try to auto-close the first offender that still has attempts left.
+            if (now - lastPipActionAt < 2500) return // throttle startActivity spam
+            val pkg = offenders.firstOrNull { (pipAttempts[it] ?: 0) < MAX_PIP_ATTEMPTS } ?: return
+            pipAttempts[pkg] = (pipAttempts[pkg] ?: 0) + 1
+            lastPipActionAt = now
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            val msg = "PiP ⛔ blocked mini-window — $pkg (attempt ${pipAttempts[pkg]}/$MAX_PIP_ATTEMPTS)"
+            ironLedger.add(0, mapOf("package" to msg, "blocked" to true, "time" to time))
+            if (ironLedger.size > 200) ironLedger.removeLast()
+            Handler(Looper.getMainLooper()).post { logListener?.invoke(msg, true, time) }
+            persistLog(pkg, true, time, "block")
+            try {
+                val li = packageManager.getLaunchIntentForPackage(pkg)
+                if (li != null) {
+                    li.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    startActivity(li) // exits PiP into full-screen
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        performGlobalAction(GLOBAL_ACTION_BACK) // stop playback
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                        }, 350)
+                    }, 400)
+                } else {
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                }
+            } catch (e: Exception) {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
         } catch (e: Exception) { /* never break the pulse */ }
+    }
+
+    // Lifts the "close the mini-window manually" gate (no-op when not set).
+    private fun clearPipManualBlock(prefs: android.content.SharedPreferences) {
+        try {
+            if (!prefs.getString("flutter.pip_manual_block", "").isNullOrEmpty()) {
+                prefs.edit().remove("flutter.pip_manual_block").commit()
+            }
+        } catch (e: Exception) { /* ignore */ }
     }
 
     // Writes a VPN lifecycle event to logcat AND to the in-app Logs tab (iron
@@ -455,7 +585,17 @@ class AppBlockerService : AccessibilityService() {
         // (com.*.packageinstaller) — and a launcher long-press → Uninstall goes
         // straight there, never touching com.android.settings. We now also inspect
         // those shells and match the "Uninstall" action, not just "Force stop".
-        if (isTamperShell(packageName)) {
+        //
+        // FALSE-POSITIVE GUARD: the Recents / app-switcher overview is rendered by
+        // SystemUI (or the launcher) and shows this app's card + label. Plain app
+        // switching (home → recents → pick another app) must never count as
+        // tampering, so events from the overview UI are exempt from the shield —
+        // the zone strike below still handles whatever app the user lands in.
+        val evClass = event.className?.toString() ?: ""
+        val isRecentsUi = evClass.contains("recent", ignoreCase = true) ||
+                          evClass.contains("overview", ignoreCase = true) ||
+                          evClass.contains("taskswitcher", ignoreCase = true)
+        if (isTamperShell(packageName) && !isRecentsUi) {
             val rootNode = rootInActiveWindow
             if (rootNode != null && mentionsUs(rootNode)) {
                 // Only act when THIS app is the target on screen (its label / package
@@ -561,14 +701,40 @@ class AppBlockerService : AccessibilityService() {
     }
 
     // Detects a destructive action (uninstall / force-stop / disable) by button text.
+    //
+    // findAccessibilityNodeInfosByText matches SUBSTRINGS anywhere on screen, which
+    // made harmless screens (Recents cards, notification bodies, app names containing
+    // "stop"…) trip the shield while the user was just switching apps. A tamper
+    // action is only counted when the matched node's own text EXACTLY equals a
+    // destructive phrase AND the node is an actionable control (clickable itself or
+    // inside a clickable ancestor) — i.e. a real button the user could press.
     private fun hasTamperAction(root: AccessibilityNodeInfo): Boolean {
         val tamperActions = listOf(
             "Uninstall", "Uninstall app", "Uninstall updates", "Force stop", "Force-stop",
-            "Force close", "Stop", "Disable", "Turn off", "Active in background"
+            "Force close", "Stop", "Stop app", "Disable", "Turn off"
         )
-        return tamperActions.any {
-            try { !root.findAccessibilityNodeInfosByText(it).isNullOrEmpty() } catch (e: Exception) { false }
+        for (action in tamperActions) {
+            val nodes = try { root.findAccessibilityNodeInfosByText(action) } catch (e: Exception) { null } ?: continue
+            for (n in nodes) {
+                val txt = (n.text ?: n.contentDescription ?: "").toString().trim()
+                if (tamperActions.none { it.equals(txt, ignoreCase = true) }) continue // substring hit → ignore
+                if (isActionableControl(n)) return true
+            }
         }
+        return false
+    }
+
+    // True when the node is a pressable control: clickable itself or hosted inside
+    // a clickable ancestor (button text often lives in a child TextView).
+    private fun isActionableControl(node: AccessibilityNodeInfo): Boolean {
+        var n: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (n != null && depth < 4) {
+            if (n.isClickable) return true
+            n = try { n.parent } catch (e: Exception) { null }
+            depth++
+        }
+        return false
     }
 
     // Records a tamper strike to the on-device log ledger + the dashboard feed.

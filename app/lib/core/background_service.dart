@@ -37,7 +37,8 @@ void onStart(ServiceInstance service) async {
 
   bool lastAlertState = false;
   bool lastInside = false; // tracks zone-entry transitions for the auto-foreground prompt
-  bool lowBatteryNotified = false; // debounce the low-battery notification
+  int lastBatteryNotifiedPct = 999; // 999 = no low-battery notification shown yet
+  String lastPipBlock = ""; // last pip_manual_block payload we notified about
   String lastNotifState = "";
 
   if (service is AndroidServiceInstance) service.setAsForegroundService();
@@ -227,23 +228,51 @@ void onStart(ServiceInstance service) async {
       await CloudSync.sendPulse(empId, cLat, cLng, insideGeofence, enforcerAlive, inventory, autoLock, compMatrix, batteryLevel: batteryLevel, batteryCharging: batteryCharging).timeout(const Duration(seconds: 5));
     } catch (_) {}
 
-    // Low-battery warning to the user (once per low episode). The enforcer dies
-    // when the phone dies, so nudge the user to charge before that happens.
-    if (batteryLevel != null && batteryLevel <= 15 && !batteryCharging) {
-      if (!lowBatteryNotified) {
+    // Low-battery warning to the user. Fires when the level first drops to the
+    // admin-set threshold (default 15%), then AGAIN on every further step-%
+    // drop (default 2%: 15 → 13 → 11 → …). Threshold + step come from the
+    // dashboard admin settings (battery_alert_pct / battery_notify_step).
+    final int battAlertPct = prefs.getInt('battery_alert_pct') ?? 15;
+    final int battStep = (prefs.getInt('battery_notify_step') ?? 2).clamp(1, 20).toInt();
+    if (batteryLevel != null && batteryLevel <= battAlertPct && !batteryCharging) {
+      if (lastBatteryNotifiedPct == 999 || batteryLevel <= lastBatteryNotifiedPct - battStep) {
         try {
           await flutterLocalNotificationsPlugin.show(
             998,
             "🔋 Battery low ($batteryLevel%)",
-            "Env Guardian stops protecting this device once it powers off. Please charge your phone.",
+            "Env Guardian stops protecting this device once it powers off. Please charge your phone now.",
             const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, color: Colors.orange, icon: '@mipmap/ic_launcher')),
           );
         } catch (_) {}
-        lowBatteryNotified = true;
+        lastBatteryNotifiedPct = batteryLevel;
       }
-    } else if (batteryCharging || (batteryLevel != null && batteryLevel >= 25)) {
+    } else if (batteryCharging || (batteryLevel != null && batteryLevel >= battAlertPct + 5)) {
       // Recovered / on charge → reset so the next low episode notifies again.
-      if (lowBatteryNotified) { try { await flutterLocalNotificationsPlugin.cancel(998); } catch (_) {} lowBatteryNotified = false; }
+      if (lastBatteryNotifiedPct != 999) { try { await flutterLocalNotificationsPlugin.cancel(998); } catch (_) {} lastBatteryNotifiedPct = 999; }
+    }
+
+    // Android-16 PiP fallback: the native enforcer gave up auto-closing a
+    // floating mini-window (2 failed attempts) and published the offending
+    // packages. Alert the user to close it manually — the Command Center also
+    // blocks QR scanning until the native scan sees the window gone.
+    final String pipBlock = prefs.getString('pip_manual_block') ?? "";
+    if (pipBlock.isNotEmpty && pipBlock != "[]") {
+      if (pipBlock != lastPipBlock) {
+        String names = "";
+        try { names = (json.decode(pipBlock) as List).map((e) => e.toString().split('.').last).join(", "); } catch (_) {}
+        try {
+          await flutterLocalNotificationsPlugin.show(
+            1004,
+            "⛔ Close the mini window",
+            "A floating mini-player${names.isEmpty ? "" : " ($names)"} could not be closed automatically. Close it manually — QR scanning is blocked until you do.",
+            const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, color: Colors.red, icon: '@mipmap/ic_launcher')),
+          );
+        } catch (_) {}
+        lastPipBlock = pipBlock;
+      }
+    } else if (lastPipBlock.isNotEmpty) {
+      try { await flutterLocalNotificationsPlugin.cancel(1004); } catch (_) {}
+      lastPipBlock = "";
     }
 
     // Push any buffered native enforcement logs to the server so the dashboard's
@@ -269,9 +298,9 @@ void onStart(ServiceInstance service) async {
       // When the app is in the foreground this trims the set + reports usage to the
       // server. In the background isolate the underlying channel call no-ops, which
       // is fine: the native reconciler above is the source of truth for enforcement.
-      if (insideGeofence) {
-        await enforceTimeLimits(prefs, empId, mergedWhitelist);
-      }
+      // Called regardless of zone so the dashboard keeps receiving the window's
+      // usage (and the final totals still land after the device steps out).
+      await enforceTimeLimits(prefs, empId, mergedWhitelist);
 
       await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": mergedWhitelist.toList()});
       // The Network Guard VPN + effective whitelist are reconciled natively
@@ -312,23 +341,73 @@ void onStart(ServiceInstance service) async {
     if (!insideGeofence && lastInside) {
       try { await flutterLocalNotificationsPlugin.cancel(1001); } catch (_) {}
     }
+
+    // Recurring QR reminder: while inside the zone and still unverified, nudge
+    // the user every qr_reminder_minutes (admin-set, default 5) until they scan.
+    final int nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (insideGeofence && !lastInside) {
+      await prefs.setInt('qr_reminder_anchor', nowMs); // reminder clock starts at entry
+    }
+    if (insideGeofence && !isPhysicallyVerified && !isLocked) {
+      final int reminderMin = (prefs.getInt('qr_reminder_minutes') ?? 5).clamp(1, 240).toInt();
+      final int anchor = prefs.getInt('qr_reminder_anchor') ?? nowMs;
+      if (nowMs - anchor >= reminderMin * 60000) {
+        try {
+          await flutterLocalNotificationsPlugin.show(
+            1003,
+            "🔴 Scan the zone QR code",
+            "You are inside the restricted zone but haven't authenticated yet. Open Env Guardian and scan the entrance QR.",
+            const NotificationDetails(android: AndroidNotificationDetails('guardian_alerts', 'Compliance Alerts', importance: Importance.max, priority: Priority.high, color: Colors.red, icon: '@mipmap/ic_launcher')),
+          );
+        } catch (_) {}
+        await prefs.setInt('qr_reminder_anchor', nowMs); // next reminder in reminderMin
+      }
+    } else {
+      // Verified, locked, or out of the zone → stop reminding.
+      try { await flutterLocalNotificationsPlugin.cancel(1003); } catch (_) {}
+    }
     lastInside = insideGeofence;
 
     service.invoke('update', {"lat": cLat, "lng": cLng, "inside": insideGeofence});
   });
 }
 
+// Start (epoch ms) of the current shift window. Per-app time budgets accrue
+// within one window and reset only when it rolls over — never on zone
+// exit/re-entry. Windows repeat every shift_hours (default 12h), anchored at
+// shift_start local time (default 08:00); both are admin-set on the dashboard.
+// MUST stay in lock-step with AppBlockerService.shiftWindowStart (Kotlin).
+int currentWindowStart(SharedPreferences prefs, [DateTime? at]) {
+  final now = at ?? DateTime.now();
+  int startMin = 8 * 60;
+  final s = prefs.getString('shift_start');
+  if (s != null && s.contains(':')) {
+    final parts = s.split(':');
+    final h = int.tryParse(parts[0].trim()) ?? -1;
+    final m = int.tryParse(parts.length > 1 ? parts[1].trim() : '') ?? -1;
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) startMin = h * 60 + m;
+  }
+  int hours = prefs.getInt('shift_hours') ?? 12;
+  if (hours < 1 || hours > 24) hours = 12;
+  final int period = hours * 3600000;
+  final int nowMs = now.millisecondsSinceEpoch;
+  int anchor = DateTime(now.year, now.month, now.day, startMin ~/ 60, startMin % 60).millisecondsSinceEpoch;
+  if (anchor > nowMs) anchor -= 86400000;
+  return anchor + ((nowMs - anchor) ~/ period) * period;
+}
+
 // Reads the IN-ZONE per-app usage accumulator that the native enforcer
-// (AppBlockerService.computeInZoneUsage) maintains — usage counted only while the
-// device was inside the restricted zone today, keyed by package. Returns {} if it
-// hasn't been populated yet (→ fail open, no extra blocks).
+// (AppBlockerService.computeInZoneUsage) maintains — usage counted only while
+// the device was inside the restricted zone during the CURRENT SHIFT WINDOW,
+// keyed by package. Returns {} if it hasn't been populated yet or belongs to a
+// previous window (→ fail open, no extra blocks).
 Map<String, int> readInZoneUsage(SharedPreferences prefs) {
   try {
     final s = prefs.getString('eg_inzone_usage');
     if (s == null || s.isEmpty) return {};
     final o = json.decode(s) as Map<String, dynamic>;
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    if (o['date'] != today || o['usage'] is! Map) return {};
+    final window = currentWindowStart(prefs).toString();
+    if (o['window']?.toString() != window || o['usage'] is! Map) return {};
     final Map<String, int> out = {};
     (o['usage'] as Map).forEach((k, v) { out[k.toString()] = (v as num).toInt(); });
     return out;
@@ -337,10 +416,10 @@ Map<String, int> readInZoneUsage(SharedPreferences prefs) {
   }
 }
 
-// Applies per-app daily time limits set by the admin, measured against IN-ZONE
-// usage only (not whole-day). Removes from [whitelist] any app that is
-// policy-disabled or has exhausted its in-zone daily budget, so the native
-// blocker will block it. Also reports the in-zone usage upstream.
+// Applies per-app time limits set by the admin, measured against IN-ZONE usage
+// within the current shift window (not whole-day). Removes from [whitelist] any
+// app that is policy-disabled or has exhausted its in-zone budget, so the
+// native blocker will block it. Also reports the in-zone usage upstream.
 Future<void> enforceTimeLimits(SharedPreferences prefs, String empId, Set<String> whitelist) async {
   try {
     final Map<String, dynamic> flags = json.decode(prefs.getString('feature_flags') ?? '{}') as Map<String, dynamic>;
@@ -348,7 +427,9 @@ Future<void> enforceTimeLimits(SharedPreferences prefs, String empId, Set<String
     // In-zone usage is reported regardless of the time-limit feature so the
     // dashboard's usage table always reflects real in-zone activity.
     final Map<String, int> usage = readInZoneUsage(prefs);
-    if (empId.isNotEmpty && usage.isNotEmpty) await CloudSync.sendAppUsage(empId, usage);
+    if (empId.isNotEmpty && usage.isNotEmpty) {
+      await CloudSync.sendAppUsage(empId, usage, windowStart: currentWindowStart(prefs));
+    }
 
     if (flags['app_time_limits'] != true) return; // feature not unlocked for this user
 

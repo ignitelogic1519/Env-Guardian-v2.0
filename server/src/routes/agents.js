@@ -142,6 +142,11 @@ router.post("/heartbeat", requireApiKey, async (req, res) => {
          current_lat       = COALESCE($2, current_lat),
          current_lng       = COALESCE($3, current_lng),
          in_zone           = COALESCE($4, in_zone),
+         in_zone_since     = CASE
+                               WHEN $4::boolean IS TRUE AND agents.in_zone IS NOT TRUE THEN $9
+                               WHEN $4::boolean IS FALSE THEN NULL
+                               ELSE in_zone_since
+                             END,
          compliance_status = COALESCE($5::jsonb, compliance_status),
          installed_apps    = COALESCE($6::jsonb, installed_apps),
          enforcer_active   = COALESCE($7, enforcer_active),
@@ -316,7 +321,7 @@ router.get("/dashboard/agents", requireAuth, async (req, res) => {
       `SELECT
          id, emp_name, emp_id, device_id, device_model,
          android_version, sdk_int,
-         registered_at, current_lat, current_lng, in_zone,
+         registered_at, current_lat, current_lng, in_zone, in_zone_since,
          enforcer_active, last_pulse, installed_apps,
          admin_lock, auto_lock, compliance_status, custom_whitelist,
          battery_level, battery_charging, log_capture,

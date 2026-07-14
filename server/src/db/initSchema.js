@@ -62,14 +62,17 @@ const STATEMENTS = [
      user_id           integer,
      employee_id       integer
    )`,
+  // window_start = epoch-ms of the shift window the usage accrued in (see
+  // system_settings.shift_start / shift_hours). 0 = legacy whole-day rows.
   `CREATE TABLE IF NOT EXISTS public.app_usage (
-     id          SERIAL PRIMARY KEY,
-     emp_id      varchar(50)  NOT NULL,
-     date        date         NOT NULL,
-     package     varchar(200) NOT NULL,
-     total_ms    bigint NOT NULL DEFAULT 0,
-     last_used   bigint NOT NULL DEFAULT 0,
-     recorded_at bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
+     id           SERIAL PRIMARY KEY,
+     emp_id       varchar(50)  NOT NULL,
+     date         date         NOT NULL,
+     package      varchar(200) NOT NULL,
+     window_start bigint NOT NULL DEFAULT 0,
+     total_ms     bigint NOT NULL DEFAULT 0,
+     last_used    bigint NOT NULL DEFAULT 0,
+     recorded_at  bigint NOT NULL DEFAULT (EXTRACT(epoch FROM now()) * 1000)::bigint
    )`,
   // Per-user, per-app time budgets set by the admin.
   // daily_limit_ms = how long this app may be used per day (in ms); 0 = unlimited.
@@ -89,7 +92,13 @@ const STATEMENTS = [
      qr_secret        varchar(255) NOT NULL,
      qr_mode          varchar(10) DEFAULT 'static',
      updated_at       bigint,
-     whitelisted_apps jsonb DEFAULT '[]'::jsonb
+     whitelisted_apps jsonb DEFAULT '[]'::jsonb,
+     shift_start         varchar(5) DEFAULT '08:00',
+     shift_hours         integer DEFAULT 12,
+     qr_alert_minutes    integer DEFAULT 20,
+     qr_reminder_minutes integer DEFAULT 5,
+     battery_alert_pct   integer DEFAULT 15,
+     battery_notify_step integer DEFAULT 2
    )`,
   // Dashboard login audit — powers the "number of logins" metric.
   `CREATE TABLE IF NOT EXISTS public.login_events (
@@ -158,7 +167,22 @@ const STATEMENTS = [
   // logs are ALSO persisted to public.device_logs so the dashboard can show a
   // history (retained ≤ 1 day). Toggled per device from the dashboard.
   `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS log_capture boolean DEFAULT false`,
+  // When the device entered the restricted zone (epoch ms). Set on the in-zone
+  // heartbeat transition, cleared on exit — powers the "in zone but QR not
+  // scanned for N minutes" alert.
+  `ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS in_zone_since bigint`,
   `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS qr_mode varchar(10) DEFAULT 'static'`,
+  // Shift window for per-app time budgets (usage resets every shift_hours,
+  // anchored at shift_start local time) + alert tuning knobs, all editable
+  // from the dashboard admin settings.
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS shift_start varchar(5) DEFAULT '08:00'`,
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS shift_hours integer DEFAULT 12`,
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS qr_alert_minutes integer DEFAULT 20`,
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS qr_reminder_minutes integer DEFAULT 5`,
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS battery_alert_pct integer DEFAULT 15`,
+  `ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS battery_notify_step integer DEFAULT 2`,
+  // Usage rows are now per shift window, not per day.
+  `ALTER TABLE public.app_usage ADD COLUMN IF NOT EXISTS window_start bigint NOT NULL DEFAULT 0`,
   // users table backfills (in case an older/partial users table exists)
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS org_name varchar(100) DEFAULT 'Env Guardian'`,
   `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role varchar(20) DEFAULT 'admin'`,
@@ -176,7 +200,10 @@ const STATEMENTS = [
   // emp_id / device_id uniqueness powers the APK upserts (ON CONFLICT).
   `CREATE UNIQUE INDEX IF NOT EXISTS agents_emp_id_key   ON public.agents (emp_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS agents_device_id_key ON public.agents (device_id)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS app_usage_emp_id_date_package_key ON public.app_usage (emp_id, date, package)`,
+  // The old (emp_id, date, package) unique index must go: usage is now keyed by
+  // shift window too, so one day can legitimately hold two rows per package.
+  `DROP INDEX IF EXISTS app_usage_emp_id_date_package_key`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS app_usage_emp_date_pkg_window_key ON public.app_usage (emp_id, date, package, window_start)`,
   `CREATE INDEX IF NOT EXISTS idx_agents_user_id     ON public.agents (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_app_usage_date      ON public.app_usage (date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_app_usage_emp_date  ON public.app_usage (emp_id, date DESC)`,

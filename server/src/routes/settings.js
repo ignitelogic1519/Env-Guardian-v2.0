@@ -45,7 +45,10 @@ router.get("/settings", requireAuth, async (req, res) => {
   try {
     // Includes admin_password + qr_secret so the APK can sync them on startup.
     const result = await pool.query(
-      "SELECT id, admin_password, geofence_polygon, whitelisted_apps, qr_secret, qr_mode, updated_at FROM public.system_settings WHERE id = 1"
+      `SELECT id, admin_password, geofence_polygon, whitelisted_apps, qr_secret, qr_mode, updated_at,
+              shift_start, shift_hours, qr_alert_minutes, qr_reminder_minutes,
+              battery_alert_pct, battery_notify_step
+       FROM public.system_settings WHERE id = 1`
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Settings not found" });
@@ -163,6 +166,71 @@ router.put("/settings/qr-secret", requireAuth, requireRole("admin"), async (req,
     res.json({ success: true, qr_secret: result.rows[0]?.qr_secret });
   } catch (err) {
     console.error("[SETTINGS] Update QR secret error:", err.message);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// PUT /api/settings/alert-config
+// Body (all optional): { shift_start: "HH:MM", shift_hours, qr_alert_minutes,
+//                        qr_reminder_minutes, battery_alert_pct, battery_notify_step }
+// Admin-tunable knobs: the shift window that per-app time budgets reset on, the
+// "in zone but QR not scanned" alert threshold, the on-device QR reminder
+// cadence, and the low-battery notification threshold/step.
+router.put("/settings/alert-config", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const updates = [];
+    const params = [];
+    const num = (v) => (v === undefined || v === null || v === "" ? undefined : Math.floor(Number(v)));
+    const addNum = (col, v, min, max) => {
+      if (v === undefined) return true;
+      if (!Number.isFinite(v) || v < min || v > max) return false;
+      params.push(v);
+      updates.push(`${col} = $${params.length}`);
+      return true;
+    };
+
+    if (b.shift_start !== undefined) {
+      if (typeof b.shift_start !== "string" || !/^([01]?\d|2[0-3]):[0-5]\d$/.test(b.shift_start.trim())) {
+        return res.status(400).json({ success: false, error: "shift_start must be HH:MM (24h)" });
+      }
+      params.push(b.shift_start.trim());
+      updates.push(`shift_start = $${params.length}`);
+    }
+    if (!addNum("shift_hours", num(b.shift_hours), 1, 24)) {
+      return res.status(400).json({ success: false, error: "shift_hours must be 1–24" });
+    }
+    if (!addNum("qr_alert_minutes", num(b.qr_alert_minutes), 1, 1440)) {
+      return res.status(400).json({ success: false, error: "qr_alert_minutes must be 1–1440" });
+    }
+    if (!addNum("qr_reminder_minutes", num(b.qr_reminder_minutes), 1, 240)) {
+      return res.status(400).json({ success: false, error: "qr_reminder_minutes must be 1–240" });
+    }
+    if (!addNum("battery_alert_pct", num(b.battery_alert_pct), 1, 90)) {
+      return res.status(400).json({ success: false, error: "battery_alert_pct must be 1–90" });
+    }
+    if (!addNum("battery_notify_step", num(b.battery_notify_step), 1, 20)) {
+      return res.status(400).json({ success: false, error: "battery_notify_step must be 1–20" });
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: "No settings provided" });
+    }
+
+    params.push(Date.now());
+    updates.push(`updated_at = $${params.length}`);
+    const result = await pool.query(
+      `UPDATE public.system_settings SET ${updates.join(", ")} WHERE id = 1
+       RETURNING shift_start, shift_hours, qr_alert_minutes, qr_reminder_minutes,
+                 battery_alert_pct, battery_notify_step`,
+      params
+    );
+    if (result.rows.length === 0) {
+      return res.status(500).json({ success: false, error: "Settings row missing (id = 1)" });
+    }
+    console.log("[SETTINGS] Alert/shift config saved:", result.rows[0]);
+    res.json({ success: true, settings: result.rows[0] });
+  } catch (err) {
+    console.error("[SETTINGS] Update alert-config error:", err.message);
     res.status(500).json({ success: false, error: "Server error" });
   }
 });

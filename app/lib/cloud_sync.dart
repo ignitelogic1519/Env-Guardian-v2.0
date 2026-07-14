@@ -49,6 +49,16 @@ class CloudSync {
 
         await p.setString('qr_secret', settings['qr_secret'] ?? 'FoldedSteelSecret2026');
         await p.setString('qr_mode', (settings['qr_mode'] ?? 'static').toString());
+
+        // Shift window (per-app time budgets reset on this cadence) + alert
+        // tuning, all set by the admin on the dashboard. The native enforcer
+        // reads shift_start / shift_hours straight from these prefs.
+        int asInt(dynamic v, int fallback) => v is num ? v.toInt() : (int.tryParse('$v') ?? fallback);
+        await p.setString('shift_start', (settings['shift_start'] ?? '08:00').toString());
+        await p.setInt('shift_hours', asInt(settings['shift_hours'], 12));
+        await p.setInt('qr_reminder_minutes', asInt(settings['qr_reminder_minutes'], 5));
+        await p.setInt('battery_alert_pct', asInt(settings['battery_alert_pct'], 15));
+        await p.setInt('battery_notify_step', asInt(settings['battery_notify_step'], 2));
       }
     } catch (e) {
       // Offline fallback
@@ -123,12 +133,16 @@ class CloudSync {
     }
   }
 
-  // Reports today's per-app foreground usage to the server (feeds the dashboard
-  // and the app_usage history). usage = { package: totalMsToday }.
-  static Future<void> sendAppUsage(String empId, Map<String, int> usage) async {
+  // Reports per-app in-zone usage for the current shift window to the server
+  // (feeds the dashboard and the app_usage history). usage = { package: totalMs
+  // within the window }; windowStart = epoch-ms start of the shift window the
+  // totals belong to (the row's date is derived from it, so an overnight shift
+  // stays attributed to the day it started).
+  static Future<void> sendAppUsage(String empId, Map<String, int> usage, {int windowStart = 0}) async {
     if (usage.isEmpty) return;
     try {
-      final date = DateTime.now().toIso8601String().substring(0, 10); // YYYY-MM-DD
+      final dt = windowStart > 0 ? DateTime.fromMillisecondsSinceEpoch(windowStart) : DateTime.now();
+      final date = dt.toIso8601String().substring(0, 10); // YYYY-MM-DD
       final list = usage.entries
           .where((e) => e.value > 0)
           .map((e) => {"package": e.key, "totalTimeMs": e.value, "lastUsed": 0})
@@ -137,7 +151,7 @@ class CloudSync {
       await http.post(
         Uri.parse("$baseUrl/api/app-usage"),
         headers: {"Content-Type": "application/json", "x-api-key": apiKey},
-        body: json.encode({"empId": empId, "date": date, "usage": list}),
+        body: json.encode({"empId": empId, "date": date, "windowStart": windowStart, "usage": list}),
       ).timeout(const Duration(seconds: 5));
     } catch (e) {
       // Offline fallback

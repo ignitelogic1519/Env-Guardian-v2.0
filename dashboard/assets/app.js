@@ -65,7 +65,7 @@ const PAGE_INFO = {
     desc: "Live risk feed — the fleet's tamper and safety signals, most severe first.",
     points: ["High: a device that went offline while inside the restricted zone (possible uninstall or internet cut-off)",
              "Medium: Network Guard (VPN) disabled in-zone",
-             "Low: device battery running low — resolve to acknowledge"],
+             "Low: battery running low, or in-zone without scanning the QR (threshold set in Settings)"],
   },
   metrics: {
     desc: "Numbers over time: sign-ins, compliance, and what the fleet is actually using.",
@@ -100,6 +100,7 @@ const PAGE_INFO = {
   settings: {
     desc: "The system's foundations — change with care, devices re-sync within ~10 s.",
     points: ["Geofence polygon editor with a live shape preview",
+             "Shift window for app time budgets + QR / battery alert thresholds",
              "Device admin password (vault unlock / unfreeze)",
              "Which backend this console connects to"],
   },
@@ -556,6 +557,7 @@ const ALERT_TYPE = {
   offline_in_zone: "Offline in restricted zone",
   low_battery:     "Low battery",
   network_tamper:  "Network Guard disabled",
+  qr_not_scanned:  "QR not scanned in zone",
 };
 const canResolve = () => ["admin", "manager"].includes(role());
 
@@ -643,7 +645,7 @@ RENDER.alerts = async (view) => {
 
 // ═══════════ PAGE: DEVICES ═══════════
 RENDER.devices = async (view) => {
-  const { agents } = await api("/api/dashboard/agents");
+  let { agents } = await api("/api/dashboard/agents");
   const rows = (list) => list.map((a) => `
     <tr data-emp="${esc(a.emp_id)}" style="cursor:pointer">
       <td><b>${esc(a.emp_name)}</b><br><span class="mono">${esc(a.emp_id)}</span></td>
@@ -704,10 +706,39 @@ RENDER.devices = async (view) => {
   draw();
   $("#devSearch").addEventListener("input", debounce(() => { page = 1; draw(); }));
   $("#devFilter").addEventListener("change", () => { page = 1; draw(); });
+
+  // Keep the inventory live (battery, zone, online state) without losing the
+  // admin's search / filter / page position.
+  every(CFG.REFRESH_MS || 20000, async () => {
+    try {
+      const fresh = await api("/api/dashboard/agents");
+      agents = fresh.agents || agents;
+      if ($("#devBody")) draw();
+    } catch {}
+  });
 };
 
 // ═══════════ DEVICE MODAL (per-device admin) ═══════════
 const CHECK_LABELS = { notif: "Notifications", loc: "Location", gps: "GPS", batt: "Battery", overlay: "Overlay", cam: "Camera", access: "Accessibility", usage: "Usage access", qr_verified: "QR verified" };
+
+// The in-zone usage table body — rendered on open and re-rendered by the live
+// refresh so the modal reflects usage in (near) real time.
+function usageTableHtml(usage) {
+  if (!usage || !usage.length) return '<span class="hint">No in-zone usage reported this shift yet.</span>';
+  const rows = [...usage].sort((x, y) => (y.totalMs || 0) - (x.totalMs || 0)).slice(0, 12);
+  const maxMs = Math.max(1, ...rows.map((u) => u.totalMs || 0));
+  return `<div class="tbl-wrap"><table class="tbl usage-tbl"><thead><tr><th style="width:34px">#</th><th>Package</th><th style="width:34%">Share</th><th style="text-align:right">In-zone time</th></tr></thead>
+    <tbody>${rows.map((u, i) => `<tr>
+      <td class="num" style="color:var(--faint)">${i + 1}</td>
+      <td class="mono">${esc(u.package)}</td>
+      <td><div class="meter m-good"><i style="width:${Math.round(((u.totalMs || 0) / maxMs) * 100)}%"></i></div></td>
+      <td class="num" style="text-align:right;white-space:nowrap">${msHuman(u.totalMs)}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+const modalBadgesHtml = (a) => `${onlineBadge(a)}${zoneBadge(a)}${lockBadge(a)}
+  <span class="badge ${a.policy_status === "PASS" ? "badge-good" : "badge-bad"}"><span class="dot"></span>${a.compliance_score}% compliant</span>`;
+const compMatrixHtml = (comp) => Object.keys(CHECK_LABELS).filter((k) => k in comp).map((k) =>
+  `<div class="cm ${comp[k] ? "ok" : "no"}">${comp[k] ? IC.check : IC.x}${CHECK_LABELS[k]}</div>`).join("") || '<span class="hint">No compliance data reported yet.</span>';
 
 async function openDeviceModal(empId) {
   openModal(`<div class="skel" style="height:280px"></div>`, true);
@@ -724,10 +755,9 @@ async function openDeviceModal(empId) {
 
   openModal(`
     <div class="modal-head">
-      <div class="dev-ic" style="color:${a.is_online ? "var(--good-text)" : "var(--faint)"}">${IC.phone}</div>
+      <div class="dev-ic" id="mDevIc" style="color:${a.is_online ? "var(--good-text)" : "var(--faint)"}">${IC.phone}</div>
       <div style="flex:1"><h3>${esc(a.emp_name)}</h3>
-        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px">${onlineBadge(a)}${zoneBadge(a)}${lockBadge(a)}
-        <span class="badge ${a.policy_status === "PASS" ? "badge-good" : "badge-bad"}"><span class="dot"></span>${a.compliance_score}% compliant</span></div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:7px" id="mBadges">${modalBadgesHtml(a)}</div>
       </div>
       <button class="modal-x" id="mClose">×</button>
     </div>
@@ -736,16 +766,14 @@ async function openDeviceModal(empId) {
       <div class="ig neo-in"><small>Employee ID</small><span class="mono">${esc(a.emp_id)}</span></div>
       <div class="ig neo-in"><small>Model</small><span>${esc(a.device_model || "—")}</span></div>
       <div class="ig neo-in"><small>Android</small><span>${esc(a.android_version || "?")} (SDK ${a.sdk_int ?? "?"})</span></div>
-      <div class="ig neo-in"><small>Last seen</small><span>${timeAgo(a.last_seen)}</span></div>
-      <div class="ig neo-in"><small>Enforcer</small><span>${a.enforcer_active ? "Active" : "Inactive"}</span></div>
-      <div class="ig neo-in"><small>Battery</small><span>${battHtml(a)}</span></div>
+      <div class="ig neo-in"><small>Last seen</small><span id="mIgSeen">${timeAgo(a.last_seen)}</span></div>
+      <div class="ig neo-in"><small>Enforcer</small><span id="mIgEnf">${a.enforcer_active ? "Active" : "Inactive"}</span></div>
+      <div class="ig neo-in"><small>Battery</small><span id="mIgBatt">${battHtml(a)}</span></div>
       <div class="ig neo-in"><small>Registered</small><span>${a.registered_at ? new Date(+a.registered_at).toLocaleDateString() : "—"}</span></div>
     </div>
 
-    <div class="m-sec"><h4>Compliance matrix</h4>
-      <div class="cm-grid">${Object.keys(CHECK_LABELS).filter((k) => k in comp).map((k) =>
-        `<div class="cm ${comp[k] ? "ok" : "no"}">${comp[k] ? IC.check : IC.x}${CHECK_LABELS[k]}</div>`).join("") || '<span class="hint">No compliance data reported yet.</span>'}
-      </div>
+    <div class="m-sec"><h4>Compliance matrix <span class="live-dot"><i></i>Live</span></h4>
+      <div class="cm-grid" id="mCompGrid">${compMatrixHtml(comp)}</div>
     </div>
 
     ${can("lock") ? `<div class="m-sec"><h4>Remote lock</h4>
@@ -764,20 +792,9 @@ async function openDeviceModal(empId) {
     </div>
 
     <div class="m-usage-cols">
-      <div class="m-sec"><h4>App usage in zone (today)</h4>
-        <p class="hint" style="margin:0 0 8px">Time each app was used <b>while inside the restricted zone</b> today — this is what per-app limits are measured against.</p>
-        ${usage.length ? `<div class="tbl-wrap"><table class="tbl usage-tbl"><thead><tr><th style="width:34px">#</th><th>Package</th><th style="width:34%">Share</th><th style="text-align:right">In-zone time</th></tr></thead>
-          <tbody>${(() => {
-            const rows = [...usage].sort((x, y) => (y.totalMs || 0) - (x.totalMs || 0)).slice(0, 12);
-            const maxMs = Math.max(1, ...rows.map((u) => u.totalMs || 0));
-            return rows.map((u, i) => `<tr>
-              <td class="num" style="color:var(--faint)">${i + 1}</td>
-              <td class="mono">${esc(u.package)}</td>
-              <td><div class="meter m-good"><i style="width:${Math.round(((u.totalMs || 0) / maxMs) * 100)}%"></i></div></td>
-              <td class="num" style="text-align:right;white-space:nowrap">${msHuman(u.totalMs)}</td>
-            </tr>`).join("");
-          })()}</tbody></table></div>`
-          : '<span class="hint">No in-zone usage reported today.</span>'}
+      <div class="m-sec"><h4>App usage in zone (today) <span class="live-dot"><i></i>Live</span></h4>
+        <p class="hint" style="margin:0 0 8px">Time each app was used <b>while inside the restricted zone</b> — what per-app limits are measured against. Refreshes automatically while this panel is open.</p>
+        <div id="mUsageBox">${usageTableHtml(usage)}</div>
       </div>
 
       <div class="m-sec"><h4>Device logs <span class="live-dot" id="mLogLive"><i></i>Live</span></h4>
@@ -882,6 +899,36 @@ async function openDeviceModal(empId) {
     $("#mHistBtn")?.classList.toggle("btn-primary", mode === "history");
     if (mode === "live") refreshLive(); else loadHistory();
   };
+  // ── Live device refresh: battery, compliance, badges + in-zone usage ──
+  // Repolls the agent row and today's usage so the open panel tracks the
+  // device in (near) real time instead of freezing at open-time values.
+  async function refreshDevice() {
+    if (!$("#mBadges")) return; // modal closed / replaced
+    try {
+      const [{ agent: fresh }, u] = await Promise.all([
+        api(`/api/dashboard/agents/${encodeURIComponent(empId)}`),
+        (async () => {
+          const today = new Date().toISOString().slice(0, 10);
+          return api(`/api/app-usage/${encodeURIComponent(empId)}?startDate=${today}&endDate=${today}`).catch(() => null);
+        })(),
+      ]);
+      const freshComp = typeof fresh.compliance_status === "string"
+        ? JSON.parse(fresh.compliance_status || "{}") : (fresh.compliance_status || {});
+      const set = (id, html) => { const el = $(id); if (el) el.innerHTML = html; };
+      set("#mBadges", modalBadgesHtml(fresh));
+      set("#mIgSeen", timeAgo(fresh.last_seen));
+      set("#mIgEnf", fresh.enforcer_active ? "Active" : "Inactive");
+      set("#mIgBatt", battHtml(fresh));
+      set("#mCompGrid", compMatrixHtml(freshComp));
+      const ic = $("#mDevIc"); if (ic) ic.style.color = fresh.is_online ? "var(--good-text)" : "var(--faint)";
+      const today = new Date().toISOString().slice(0, 10);
+      set("#mUsageBox", usageTableHtml(u?.data?.[today] || []));
+      // Keep the lock switch honest unless the admin is mid-click.
+      const lock = $("#mLock");
+      if (lock && document.activeElement !== lock) lock.checked = !!fresh.admin_lock;
+    } catch { /* transient network hiccup — try again next tick */ }
+  }
+
   $("#mLiveBtn")?.addEventListener("click", () => setMode("live"));
   $("#mHistBtn")?.addEventListener("click", () => setMode("history"));
   $("#mCapture")?.addEventListener("change", async (e) => {
@@ -894,7 +941,7 @@ async function openDeviceModal(empId) {
 
   if (modalTimer) { clearInterval(modalTimer); modalTimer = null; }
   setMode("live");
-  modalTimer = setInterval(refreshLive, 4000);
+  modalTimer = setInterval(() => { refreshLive(); refreshDevice(); }, 4000);
 }
 
 // ═══════════ PAGE: METRICS ═══════════
@@ -1387,6 +1434,32 @@ RENDER.settings = async (view) => {
       </div>
     </div>
 
+    <div class="glass card rv" style="margin-top:18px">
+      <div class="sect-h" style="margin:0 0 12px"><div><h3>Alerts & shift timing</h3>
+        <p>Worker-shift window for per-app time budgets, QR-scan alerting and low-battery notifications. Devices re-sync within ~10s; the alert sweep applies changes within ~30s.</p></div>
+        <button class="btn btn-primary btn-sm" id="acSave">Save alert settings</button></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+        <div class="field" style="margin:0"><label>Shift start (HH:MM)</label>
+          <input class="input" id="acShiftStart" type="time" value="${esc(settings.shift_start || "08:00")}" />
+          <p class="hint" style="margin:6px 0 0">When the workers' shift begins — app time budgets reset at each window rollover, never on zone re-entry.</p></div>
+        <div class="field" style="margin:0"><label>Shift window (hours)</label>
+          <input class="input" id="acShiftHours" type="number" min="1" max="24" value="${settings.shift_hours ?? 12}" />
+          <p class="hint" style="margin:6px 0 0">Length of each budget window (default 12h). 24 = once a day.</p></div>
+        <div class="field" style="margin:0"><label>QR alert threshold (min)</label>
+          <input class="input" id="acQrAlert" type="number" min="1" max="1440" value="${settings.qr_alert_minutes ?? 20}" />
+          <p class="hint" style="margin:6px 0 0">Raise a LOW alert when a device sits in the zone this long without scanning the QR.</p></div>
+        <div class="field" style="margin:0"><label>QR device reminder (min)</label>
+          <input class="input" id="acQrRemind" type="number" min="1" max="240" value="${settings.qr_reminder_minutes ?? 5}" />
+          <p class="hint" style="margin:6px 0 0">The phone reminds its user to scan at this interval while unverified in-zone.</p></div>
+        <div class="field" style="margin:0"><label>Battery alert level (%)</label>
+          <input class="input" id="acBattPct" type="number" min="1" max="90" value="${settings.battery_alert_pct ?? 15}" />
+          <p class="hint" style="margin:6px 0 0">First low-battery notification on the device + the dashboard's low-battery alert.</p></div>
+        <div class="field" style="margin:0"><label>Battery re-notify step (%)</label>
+          <input class="input" id="acBattStep" type="number" min="1" max="20" value="${settings.battery_notify_step ?? 2}" />
+          <p class="hint" style="margin:6px 0 0">Notify the user again after every further drop of this many percent.</p></div>
+      </div>
+    </div>
+
     <div class="grid g-2" style="margin-top:18px">
       <div class="glass card rv">
         <div class="sect-h" style="margin:0 0 12px"><div><h3>Admin password</h3><p>Used on the device to unlock the Armory vault and unfreeze a locked phone.</p></div></div>
@@ -1432,6 +1505,20 @@ RENDER.settings = async (view) => {
     try {
       await api("/api/settings/geofence", { method: "PUT", body: JSON.stringify({ polygon: poly }) });
       toast("Geofence saved — devices re-sync within ~10s");
+    } catch (ex) { toast(ex.message, "err"); }
+  });
+
+  $("#acSave").addEventListener("click", async () => {
+    try {
+      await api("/api/settings/alert-config", { method: "PUT", body: JSON.stringify({
+        shift_start: $("#acShiftStart").value,
+        shift_hours: parseInt($("#acShiftHours").value, 10),
+        qr_alert_minutes: parseInt($("#acQrAlert").value, 10),
+        qr_reminder_minutes: parseInt($("#acQrRemind").value, 10),
+        battery_alert_pct: parseInt($("#acBattPct").value, 10),
+        battery_notify_step: parseInt($("#acBattStep").value, 10),
+      }) });
+      toast("Alert & shift settings saved — devices re-sync within ~10s");
     } catch (ex) { toast(ex.message, "err"); }
   });
 

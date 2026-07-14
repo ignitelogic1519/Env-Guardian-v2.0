@@ -6,26 +6,29 @@ const { requireApiKey, requireAuth } = require("../middleware/auth");
 
 // POST /api/app-usage
 // Called by APK every heartbeat when device is in restricted zone
-// Body: { empId, timestamp, date, usage: [{package, totalTimeMs, lastUsed}] }
+// Body: { empId, timestamp, date, windowStart?, usage: [{package, totalTimeMs, lastUsed}] }
+// windowStart = epoch-ms of the shift window the usage belongs to (0 = legacy
+// whole-day reporting from older APKs). Totals are cumulative WITHIN a window,
+// so GREATEST keeps the row monotonic while a new window starts a fresh row.
 router.post("/", requireApiKey, async (req, res) => {
   try {
     const { empId, date, usage } = req.body;
     if (!empId || !date || !Array.isArray(usage) || usage.length === 0) {
       return res.status(400).json({ success: false, error: "empId, date and usage[] required" });
     }
+    const windowStart = Number.isFinite(Number(req.body.windowStart)) ? Math.floor(Number(req.body.windowStart)) : 0;
 
-    // Upsert each app's usage — update if higher (device may send multiple times per day)
     for (const u of usage) {
       if (!u.package || typeof u.totalTimeMs !== "number") continue;
       await pool.query(
-        `INSERT INTO public.app_usage (emp_id, date, package, total_ms, last_used, recorded_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (emp_id, date, package)
+        `INSERT INTO public.app_usage (emp_id, date, package, window_start, total_ms, last_used, recorded_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (emp_id, date, package, window_start)
          DO UPDATE SET
            total_ms    = GREATEST(app_usage.total_ms, EXCLUDED.total_ms),
            last_used   = GREATEST(app_usage.last_used, EXCLUDED.last_used),
            recorded_at = EXCLUDED.recorded_at`,
-        [empId, date, u.package, u.totalTimeMs, u.lastUsed || 0, Date.now()]
+        [empId, date, u.package, windowStart, u.totalTimeMs, u.lastUsed || 0, Date.now()]
       );
     }
 
@@ -50,12 +53,18 @@ router.get("/:empId", requireAuth, async (req, res) => {
     const start = startDate || today;
     const end   = endDate   || today;
 
+    // A date can hold multiple shift-window rows per package — aggregate them
+    // so the dashboard sees one line per (date, package).
     const result = await pool.query(
       `SELECT
-         emp_id, date, package, total_ms, last_used, recorded_at
+         emp_id, date, package,
+         SUM(total_ms)::bigint    AS total_ms,
+         MAX(last_used)::bigint   AS last_used,
+         MAX(recorded_at)::bigint AS recorded_at
        FROM public.app_usage
        WHERE emp_id = $1
          AND date BETWEEN $2 AND $3
+       GROUP BY emp_id, date, package
        ORDER BY date DESC, total_ms DESC`,
       [empId, start, end]
     );
@@ -94,12 +103,13 @@ router.get("/summary/all", requireAuth, async (req, res) => {
          a.emp_id,
          ag.emp_name,
          a.package,
-         a.total_ms,
-         a.last_used
+         SUM(a.total_ms)::bigint  AS total_ms,
+         MAX(a.last_used)::bigint AS last_used
        FROM public.app_usage a
        LEFT JOIN public.agents ag ON ag.emp_id = a.emp_id
        WHERE a.date = $1
-       ORDER BY a.emp_id, a.total_ms DESC`,
+       GROUP BY a.emp_id, ag.emp_name, a.package
+       ORDER BY a.emp_id, total_ms DESC`,
       [date]
     );
 

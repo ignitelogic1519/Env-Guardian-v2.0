@@ -8,6 +8,11 @@ import '../../core/platform.dart';
 
 /// Armory tab — the admin-only "Zero Trust Vault" where allowed apps
 /// (the custom whitelist) are toggled per device.
+///
+/// Shows and toggles ONLY the per-device CUSTOM whitelist. The global
+/// whitelist is deliberately never surfaced on the device (revealing it would
+/// advertise which apps bypass the blocker fleet-wide); it still applies at
+/// enforcement time — the merged set is what gets pushed to the native blocker.
 class ArmoryTab extends StatefulWidget { const ArmoryTab({super.key}); @override State<ArmoryTab> createState() => _ArmoryTabState(); }
 class _ArmoryTabState extends State<ArmoryTab> {
   List<AppInfo> _apps = []; Set<String> _whitelist = {}; bool _loading = true, _unlocked = false; final TextEditingController _pass = TextEditingController();
@@ -16,10 +21,7 @@ class _ArmoryTabState extends State<ArmoryTab> {
 
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
-    _whitelist = {
-      ...(p.getStringList('global_whitelist') ?? []),
-      ...(p.getStringList('custom_whitelist') ?? [])
-    };
+    _whitelist = {...(p.getStringList('custom_whitelist') ?? [])};
     List<AppInfo> installed = await InstalledApps.getInstalledApps(excludeSystemApps: false, withIcon: true); installed.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())); if (mounted) setState(() { _apps = installed; _loading = false; });
   }
 
@@ -31,7 +33,7 @@ class _ArmoryTabState extends State<ArmoryTab> {
       final a = _apps[i]; if (a.packageName == "com.envguardian.mdm") return const SizedBox.shrink();
       bool isAllowed = _whitelist.contains(a.packageName);
 
-      return ListTile(leading: a.icon != null ? Image.memory(a.icon!, width: 40) : const Icon(Icons.android), title: Text(a.name), subtitle: Text(isAllowed ? "VIP Allowed" : "Blocked by Zero Trust", style: TextStyle(color: isAllowed ? Colors.green : Colors.red, fontSize: 12)), trailing: Switch(value: isAllowed, activeColor: Colors.green, inactiveThumbColor: Colors.red, onChanged: (v) async {
+      return ListTile(leading: a.icon != null ? Image.memory(a.icon!, width: 40) : const Icon(Icons.android), title: Text(a.name), subtitle: Text(isAllowed ? "VIP Allowed (custom)" : "Blocked by Zero Trust", style: TextStyle(color: isAllowed ? Colors.green : Colors.red, fontSize: 12)), trailing: Switch(value: isAllowed, activeColor: Colors.green, inactiveThumbColor: Colors.red, onChanged: (v) async {
         setState(() { if (v) _whitelist.add(a.packageName); else _whitelist.remove(a.packageName); });
         final p = await SharedPreferences.getInstance();
 
@@ -48,10 +50,14 @@ class _ArmoryTabState extends State<ArmoryTab> {
           await CloudSync.updateWhitelist(empId, cList);
         }
 
-        await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": _whitelist.toList()});
+        // ENFORCEMENT still uses global ∪ custom — only the DISPLAY hides the
+        // global list. Pushing custom-only here would strip the global apps
+        // from the blocker until the next background sync.
+        final merged = {...(p.getStringList('global_whitelist') ?? []), ...cList};
+        await platformBlocker.invokeMethod('updateWhitelistedApps', {"apps": merged.toList()});
         // Also refresh the native base so the change is enforced even if the app is
         // backgrounded right after (AppBlockerService reads eg_base_whitelist).
-        await p.setString('eg_base_whitelist', json.encode(_whitelist.toList()));
+        await p.setString('eg_base_whitelist', json.encode(merged.toList()));
       }));
     });
   }
