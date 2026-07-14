@@ -48,7 +48,10 @@ dependencies:
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
   flutter_local_notifications: ^17.0.0
-  flutter_background_service: 
+  # 5.x pulls flutter_background_service_android 6.x — includes the Android 14+
+  # foreground-service start-crash fix (5.0.7). Was previously unconstrained but
+  # locked at 3.0.2; the Dart API this app uses is unchanged across 3.x → 5.x.
+  flutter_background_service: ^5.1.0
   mobile_scanner: ^7.2.0
   path_provider: ^2.1.5
   device_info_plus: ^13.1.0
