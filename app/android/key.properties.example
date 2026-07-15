@@ -1,0 +1,13 @@
+# Copy this file to android/key.properties (gitignored) and fill in the
+# values for your upload keystore. Create the keystore once with:
+#
+#   keytool -genkey -v -keystore ~/eg-upload.jks -keyalg RSA -keysize 2048 \
+#           -validity 10000 -alias upload
+#
+# Keep the keystore + this file OUT of version control (already gitignored).
+# Losing the keystore means losing the ability to update the app on Play
+# (unless Play App Signing is enabled — enroll in it when creating the app).
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=/absolute/path/to/eg-upload.jks

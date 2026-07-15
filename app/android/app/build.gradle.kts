@@ -1,7 +1,22 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// ── Release signing (required for Play Store uploads) ─────────────────────
+// The upload keystore is NEVER committed. Create it once:
+//   keytool -genkey -v -keystore ~/eg-upload.jks -keyalg RSA -keysize 2048 \
+//           -validity 10000 -alias upload
+// then copy android/key.properties.example to android/key.properties and
+// fill in the paths/passwords (both files are gitignored).
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -35,13 +50,31 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
             // In .kts, we must use 'is' for these boolean properties
             isMinifyEnabled = false
             isShrinkResources = false
-            
-            signingConfig = signingConfigs.getByName("debug")
+
+            // Real upload key when android/key.properties exists; debug-key
+            // fallback ONLY so local `flutter build apk` keeps working without
+            // a keystore. Play uploads MUST be built with key.properties in
+            // place — a debug-signed bundle is rejected by the Play Console.
+            signingConfig = if (keystorePropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
         }
     }
 }

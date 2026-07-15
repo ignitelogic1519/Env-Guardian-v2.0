@@ -9,6 +9,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
 import '../../cloud_sync.dart';
 import '../../core/platform.dart';
+import '../../core/permissions_ux.dart';
 import '../../core/theme/glass.dart';
 import '../command_center/command_center_screen.dart';
 
@@ -18,6 +19,7 @@ class AdminSetupScreen extends StatefulWidget { const AdminSetupScreen({super.ke
 class _AdminSetupScreenState extends State<AdminSetupScreen> {
   bool _nOk = false, _fOk = false, _bOk = false, _oOk = false, _cOk = false, _aOk = false, _vpnOk = false;
   bool _usageOk = false, _notifOk = false, _autoStartAck = false; // now-mandatory special-access grants
+  bool _accessAttempted = false; // first tap opens settings; a failed retry opens the restricted-settings help
   final TextEditingController _nameCtrl = TextEditingController(), _empIdCtrl = TextEditingController(); Timer? _setupTimer;
 
   @override void initState() {
@@ -73,7 +75,16 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
   // Arms a short grace window so the enforcer stands down while the user is on a
   // system settings screen (otherwise the anti-tamper shield can bounce them out).
   Future<void> _armSettingsGrace() async { final p = await SharedPreferences.getInstance(); await p.setInt('enforcement_grace_until', DateTime.now().millisecondsSinceEpoch + 45000); }
-  Future<void> _openAccessibility() async { await _armSettingsGrace(); await platformBlocker.invokeMethod('openAccessibilitySettings'); }
+  // First tap goes straight to the Accessibility screen. If the user comes back
+  // with the enforcer still dead (toggle blocked by Android 13+ "Restricted
+  // settings" on sideloaded installs, or reverted by the OEM battery manager),
+  // the next tap opens the step-by-step recovery guide instead.
+  Future<void> _openAccessibility() async {
+    await _armSettingsGrace();
+    if (_accessAttempted && !_aOk && mounted) { await showAccessibilityHelp(context); return; }
+    _accessAttempted = true;
+    await platformBlocker.invokeMethod('openAccessibilitySettings');
+  }
   Future<void> _reqUsage() async { await _armSettingsGrace(); try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _checkNativeGates(); }
   Future<void> _reqNotifAccess() async { await _armSettingsGrace(); try { await platformBlocker.invokeMethod('openNotificationAccessSettings'); } catch (_) {} _checkNativeGates(); }
   // Auto-start has no queryable state; tapping records an acknowledgement.
@@ -81,7 +92,9 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
 
   Future<void> _reqN() async { final s = await Permission.notification.request(); setState(() => _nOk = s.isGranted); }
   Future<void> _reqF() async { final s = await Permission.location.request(); setState(() => _fOk = s.isGranted); }
-  Future<void> _reqB() async { if (!_fOk) return; final s = await Permission.locationAlways.request(); if (s.isGranted) await Permission.ignoreBatteryOptimizations.request(); setState(() => _bOk = s.isGranted); }
+  // Play policy: the prominent disclosure MUST be shown and accepted before the
+  // system background-location prompt fires.
+  Future<void> _reqB() async { if (!_fOk) return; if (!mounted || !await showBackgroundLocationDisclosure(context)) return; final s = await Permission.locationAlways.request(); if (s.isGranted) await Permission.ignoreBatteryOptimizations.request(); setState(() => _bOk = s.isGranted); }
   Future<void> _reqO() async { final s = await Permission.systemAlertWindow.request(); setState(() => _oOk = s.isGranted); }
   Future<void> _reqC() async { final s = await Permission.camera.request(); setState(() => _cOk = s.isGranted); }
 

@@ -8,6 +8,7 @@ import 'package:installed_apps/installed_apps.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../cloud_sync.dart';
 import '../../core/platform.dart';
+import '../../core/permissions_ux.dart';
 import '../../core/background_service.dart';
 import '../../core/theme/neumorphic.dart';
 import '../../core/theme/glass.dart';
@@ -26,6 +27,7 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   bool _notifAccessOk = false; List<String> _runningOffenders = []; // feature A: pre-scan gate
   List<String> _pipBlock = []; // mini-windows (PiP) the enforcer couldn't auto-close — must be closed manually before scanning
   bool _autostartAck = false; // OEM auto-start can't be read back — track that the user visited it
+  bool _accessAttempted = false; // failed accessibility retry opens the restricted-settings help
   bool _vpnEnabled = false, _vpnRevoked = false, _vpnLive = false; // feature B: guard policy + tamper flag + live tunnel state
   List<Offset> _poly = []; Timer? _t; Timer? _clock; int _verifiedSince = 0; final TextEditingController _unlockPassCtrl = TextEditingController();
   String _empName = "", _empId = "", _deviceId = "", _deviceModel = "";
@@ -52,7 +54,8 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
 
   Future<void> _reqN() async { await Permission.notification.request(); _sync(); }
   Future<void> _reqF() async { await Permission.location.request(); _sync(); }
-  Future<void> _reqB() async { await Permission.locationAlways.request(); await Permission.ignoreBatteryOptimizations.request(); _sync(); }
+  // Play policy: prominent disclosure must precede the background-location prompt.
+  Future<void> _reqB() async { if (!mounted || !await showBackgroundLocationDisclosure(context)) return; await Permission.locationAlways.request(); await Permission.ignoreBatteryOptimizations.request(); _sync(); }
   Future<void> _reqO() async { await Permission.systemAlertWindow.request(); _sync(); }
   Future<void> _reqC() async { await Permission.camera.request(); _sync(); }
   Future<void> _reqGps() async { await Geolocator.openLocationSettings(); _sync(); }
@@ -61,7 +64,14 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
   // pages), so we arm a short grace window first that tells the native service to
   // stand down while the user toggles the required setting.
   Future<void> _armSettingsGrace() async { final p = await SharedPreferences.getInstance(); await p.setInt('enforcement_grace_until', DateTime.now().millisecondsSinceEpoch + 45000); }
-  Future<void> _reqAccess() async { await _armSettingsGrace(); await platformBlocker.invokeMethod('openAccessibilitySettings'); _sync(); }
+  // First tap opens the Accessibility screen; a retry with the enforcer still
+  // dead opens the recovery guide (Restricted settings / OEM battery killing).
+  Future<void> _reqAccess() async {
+    await _armSettingsGrace();
+    if (_accessAttempted && !_enforcerAlive && mounted) { await showAccessibilityHelp(context); _sync(); return; }
+    _accessAttempted = true;
+    await platformBlocker.invokeMethod('openAccessibilitySettings'); _sync();
+  }
   Future<void> _reqUsage() async { await _armSettingsGrace(); try { await platformBlocker.invokeMethod('openUsageAccessSettings'); } catch (_) {} _sync(); }
   // Auto-start state can't be queried on Android, so tapping it records an
   // acknowledgement (the user has visited the OEM screen) which counts for compliance.

@@ -76,6 +76,29 @@ pip install pillow cairosvg
 python3 assets/logo/generate_icons.py
 ```
 
+## Release signing & Play Store builds
+
+Release builds are signed with a real upload key when `android/key.properties`
+exists (see `android/key.properties.example` for setup — keystore and
+properties file are gitignored and must never be committed). Without it,
+release builds fall back to the **debug key** so local builds keep working —
+but such builds are **not uploadable to Play** and, installed as a direct APK
+on Android 13+, hit the "Restricted settings" wall on the Accessibility toggle.
+
+Play upload is an app bundle, not an APK:
+
+```bash
+flutter build appbundle   # requires android/key.properties
+```
+
+Install-source matters at runtime: `flutter install` / `adb install` and
+Play-delivered builds are exempt from Android 13+ *Restricted Settings*;
+a hand-installed APK is not — the user must first use App info → ⋮ →
+"Allow restricted settings" (the app now shows a guided dialog for this when
+the Accessibility toggle won't stick). Keeping the service alive on
+aggressive OEM skins (OnePlus/ColorOS, MIUI…) additionally requires the
+battery/auto-launch/lock-in-recents steps covered by the same dialog.
+
 ## Dynamic launcher icon + status widget (Android)
 
 The launcher icon reflects the device's guard state (like Duolingo's streak

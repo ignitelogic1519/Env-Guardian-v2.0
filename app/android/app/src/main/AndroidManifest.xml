@@ -19,9 +19,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!-- Exact-alarm permissions removed: nothing in the app schedules exact
+         alarms, and USE_EXACT_ALARM is a Play-policy rejection for anything
+         that isn't an alarm-clock/calendar app. Re-add SCHEDULE_EXACT_ALARM
+         (only) if a real exact-alarm feature ships. -->
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
@@ -148,11 +150,14 @@
             android:name="id.flutter.flutter_background_service.BackgroundService"
             android:foregroundServiceType="location" />
 
+        <!-- NOT directBootAware: the service reads FlutterSharedPreferences
+             (credential-encrypted storage), which doesn't exist before first
+             unlock — binding it in Direct Boot context can fail and leave the
+             Accessibility toggle flipping back off. -->
         <service
             android:name=".AppBlockerService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false"
-            android:directBootAware="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>

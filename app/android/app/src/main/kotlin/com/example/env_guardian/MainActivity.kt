@@ -34,6 +34,18 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent)
                     result.success(true)
                 }
+                // Opens THIS app's App-info page. Needed for sideloaded installs on
+                // Android 13+: the Accessibility toggle is blocked by "Restricted
+                // settings" until the user taps ⋮ → "Allow restricted settings" on
+                // this page. Play/adb installs never hit that wall, so testers over
+                // `flutter install` don't see what direct-APK users see.
+                "openAppInfoSettings" -> {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$packageName")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                    result.success(true)
+                }
                 "updateWhitelistedApps" -> {
                     val apps = call.argument<List<String>>("apps") ?: listOf()
                     val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
