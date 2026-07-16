@@ -40,15 +40,18 @@ SELECT installed_apps FROM public.agents WHERE emp_id = 'EMP123';
 ```sql
 UPDATE public.system_settings
 SET geofence_polygon = '[
-  {"lat": 21.183031, "lng": 72.785091},
-  {"lat": 21.183360, "lng": 72.787155},
-  {"lat": 21.185533, "lng": 72.786946},
-  {"lat": 21.185101, "lng": 72.784320}
+  {"lat": 21.477889, "lng": 72.996083},
+  {"lat": 21.478639, "lng": 72.995028},
+  {"lat": 21.478639, "lng": 72.995611},
+  {"lat": 21.479861, "lng": 72.994472},
+  {"lat": 21.478917, "lng": 72.992861},
+  {"lat": 21.478167, "lng": 72.993000}
 ]'::jsonb,
     updated_at = (EXTRACT(EPOCH FROM now()) * 1000)::bigint
 WHERE id = 1;
 ```
-Use 3+ corner points, listed in order around the area.
+Use 3+ corner points, listed in order around the perimeter — the edges must
+not cross each other, or the in-zone check will misbehave.
 
 ---
 

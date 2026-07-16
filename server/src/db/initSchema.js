@@ -217,12 +217,15 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_device_logs_created ON public.device_logs (created_at)`,
 ];
 
-// Default restricted zone (Zone 1 — Surat, Gujarat).
+// Default restricted zone (Zone 1 — Gujarat). Vertices listed in perimeter
+// order (non-self-intersecting) — required by the ray-casting in-zone check.
 const DEFAULT_GEOFENCE = [
-  { lat: 21.183031, lng: 72.785091 },
-  { lat: 21.18336,  lng: 72.787155 },
-  { lat: 21.185533, lng: 72.786946 },
-  { lat: 21.185101, lng: 72.78432 },
+  { lat: 21.477889, lng: 72.996083 },
+  { lat: 21.478639, lng: 72.995028 },
+  { lat: 21.478639, lng: 72.995611 },
+  { lat: 21.479861, lng: 72.994472 },
+  { lat: 21.478917, lng: 72.992861 },
+  { lat: 21.478167, lng: 72.993000 },
 ];
 
 const DEFAULT_WHITELIST = [

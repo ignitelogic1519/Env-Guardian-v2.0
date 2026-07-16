@@ -196,7 +196,7 @@ curl -s $BASE/api/settings -H "x-api-key: $KEY"
 
 # Heartbeat
 curl -s -X POST $BASE/api/heartbeat -H "Content-Type: application/json" -H "x-api-key: $KEY" \
-  -d '{"empId":"EMP-TEST","deviceId":"DEV-TEST","lat":21.184,"lng":72.786,"inZone":true,"enforcerActive":true}'
+  -d '{"empId":"EMP-TEST","deviceId":"DEV-TEST","lat":21.4787,"lng":72.9945,"inZone":true,"enforcerActive":true}'
 
 # Agent status (admin_lock, whitelist, policies, feature_flags)
 curl -s $BASE/api/agent-status/EMP-TEST -H "x-api-key: $KEY"
