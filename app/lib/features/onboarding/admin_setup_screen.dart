@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -113,8 +114,19 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
         ListTile(title: const Text("8. Notification Access"), subtitle: const Text("Pre-scan app-close gate", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_notifOk ? Icons.check_circle : Icons.open_in_new, color: _notifOk ? Colors.green : Colors.orangeAccent), onTap: _notifOk ? null : _reqNotifAccess),
         ListTile(title: const Text("9. Auto-start (OEM)"), subtitle: const Text("Keep the monitor alive on aggressive skins", style: TextStyle(fontSize: 11, color: Colors.white54)), trailing: Icon(_autoStartAck ? Icons.check_circle : Icons.open_in_new, color: _autoStartAck ? Colors.green : Colors.orangeAccent), onTap: _autoStartAck ? null : _reqAutostart), const SizedBox(height: 50),
         if (canSeal) ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, minimumSize: const Size(double.infinity, 50)), onPressed: () async {
-          final p = await SharedPreferences.getInstance(); final deviceInfo = DeviceInfoPlugin(); String dId = "Unknown ID", dModel = "Unknown Model", androidVersion = "Unknown"; int sdkInt = 0;
-          if (Platform.isAndroid) { AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo; dId = androidInfo.id; dModel = "${androidInfo.manufacturer} ${androidInfo.model}"; androidVersion = androidInfo.version.release; sdkInt = androidInfo.version.sdkInt; }
+          final p = await SharedPreferences.getInstance(); final deviceInfo = DeviceInfoPlugin(); String dId = "", dModel = "Unknown Model", androidVersion = "Unknown"; int sdkInt = 0;
+          if (Platform.isAndroid) {
+            AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo; dModel = "${androidInfo.manufacturer} ${androidInfo.model}"; androidVersion = androidInfo.version.release; sdkInt = androidInfo.version.sdkInt;
+            // ANDROID_ID (not androidInfo.id, which is Build.ID — the firmware
+            // build number, IDENTICAL on every unit of the same model, so the
+            // server's unique device_id index rejected the 2nd same-model device).
+            try { dId = (await platformBlocker.invokeMethod<String>('getAndroidId')) ?? ""; } catch (_) {}
+          }
+          if (dId.isEmpty || dId.toLowerCase() == "unknown") {
+            // Last-resort fallback: reuse a previously issued local id, else mint a random one.
+            dId = p.getString('device_id') ?? "";
+            if (dId.isEmpty) { final r = Random.secure(); dId = "eg-${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}-${List.generate(10, (_) => r.nextInt(16).toRadixString(16)).join()}"; }
+          }
           int now = DateTime.now().millisecondsSinceEpoch; String eName = _nameCtrl.text.trim(), eId = _empIdCtrl.text.trim();
           try { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Forging identity...")));
             final response = await http.post(Uri.parse("${CloudSync.baseUrl}/api/register"), headers: {"Content-Type": "application/json", "x-api-key": CloudSync.apiKey}, body: json.encode({"empName": eName, "empId": eId, "deviceId": dId, "deviceModel": dModel, "androidVersion": androidVersion, "sdkInt": sdkInt, "registeredAt": now}));

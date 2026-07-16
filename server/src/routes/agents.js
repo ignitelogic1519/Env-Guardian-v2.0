@@ -92,11 +92,15 @@ router.post("/register", requireApiKey, async (req, res) => {
     res.status(201).json({ success: true, agent: result.rows[0] });
   } catch (err) {
     // Unique-violation (e.g. emp_id already used by another device) → 409.
+    // Name the violated constraint so the user knows WHICH field collided.
     if (err.code === "23505") {
+      const empIdConflict = /emp_id/i.test(err.constraint || "");
       return res.status(409).json({
         success: false,
-        error: "Already registered",
-        message: "This employee ID or device is already registered. Contact your administrator.",
+        error: empIdConflict ? "Employee ID already registered" : "Device already registered",
+        message: empIdConflict
+          ? "This employee ID is already registered on another device. Contact your administrator."
+          : "This device is already registered. Contact your administrator.",
       });
     }
     console.error("[AGENTS] Register error:", err.message);

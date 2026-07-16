@@ -19,6 +19,7 @@ Legend: 🟢 happy path · 🔴 negative/edge · ⚙️ setup/config
 | REG-04 | 🔴 | Device already registered to EMP-A | Register with a **different** name/ID | Rejected with 409 + "already registered to another employee" |
 | REG-05 | 🔴 | EMP-A already exists on device 1 | Register **new device** using emp_id EMP-A | Rejected 409 (emp_id unique) |
 | REG-06 | 🔴 | Airplane mode on | Attempt registration | "Could not connect to server" message; not sealed |
+| REG-07 | 🟢 | EMP-A enrolled on device 1 | Register EMP-B on a **second device of the same model/firmware** | Allowed (201) — device_id is ANDROID_ID (unique per device), not the shared Build.ID |
 
 ## 2. Background service ("the Ghost")
 

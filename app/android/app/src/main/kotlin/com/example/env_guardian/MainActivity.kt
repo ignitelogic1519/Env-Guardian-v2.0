@@ -55,6 +55,15 @@ class MainActivity : FlutterActivity() {
                 "getIronLedger" -> {
                     result.success(AppBlockerService.ironLedger)
                 }
+                // --- DEVICE IDENTITY (registration) ---
+                // ANDROID_ID is unique per device (per app-signing key since
+                // Android 8) and survives reinstalls. Build.ID — what the
+                // device_info plugin's `id` field exposes — is the firmware
+                // build number, identical on every unit of the same model, so
+                // it cannot distinguish two same-model devices.
+                "getAndroidId" -> {
+                    result.success(Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID))
+                }
                 // --- THE LIVE WIRE FIX ---
                 // Flutter asks Kotlin memory directly, bypassing the file system cache
                 "checkEnforcerStatus" -> {
